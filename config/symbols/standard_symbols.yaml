@@ -1,0 +1,40 @@
+version: "1.0.0"
+source: "Standard Table Symbols, Statistics Canada (statcan.gc.ca)"
+note: "Definitions cannot be modified. Order below reflects standard presentation order."
+symbols:
+  - symbol: ".."
+    order: 1
+    definition_en: "not available for any reference period"
+    definition_fr: "indisponible pour toute période de référence"
+  - symbol: "..."
+    order: 2
+    definition_en: "not applicable"
+    definition_fr: "n'ayant pas lieu de figurer"
+  - symbol: "0"
+    order: 3
+    definition_en: "true zero or a value rounded to zero"
+    definition_fr: "zéro vrai ou valeur arrondie à zéro"
+  - symbol: "0s"
+    order: 4
+    definition_en: "value rounded to 0 (zero) where there is a meaningful distinction from true zero"
+    definition_fr: "valeur arrondie à 0 (zéro) là où il y a une distinction significative par rapport à un zéro vrai"
+  - symbol: "p"
+    order: 5
+    definition_en: "preliminary"
+    definition_fr: "données provisoires"
+  - symbol: "r"
+    order: 6
+    definition_en: "revised"
+    definition_fr: "données révisées"
+  - symbol: "x"
+    order: 7
+    definition_en: "suppressed to meet the confidentiality requirements of the Statistics Act"
+    definition_fr: "confidentiel en vertu des dispositions de la Loi sur la statistique"
+  - symbol: "E"
+    order: 8
+    definition_en: "use with caution"
+    definition_fr: "à utiliser avec prudence"
+  - symbol: "F"
+    order: 9
+    definition_en: "too unreliable to be published"
+    definition_fr: "trop peu fiable pour être publié"

@@ -1,0 +1,140 @@
+pack: tables101
+version: "1.0.0"
+source: "Statistics Canada - Tables 101 Guide"
+language_neutral: true
+rules:
+  - id: T101-EXCEL-ONLY
+    severity: error
+    title_en: "Table must be created in Excel"
+    title_fr: "Le tableau doit être créé dans Excel"
+    description_en: "Tables must be created in Excel. One workbook containing all tables per language, one table per worksheet."
+    description_fr: "Les tableaux doivent être créés dans Excel. Un classeur par langue contenant tous les tableaux, un tableau par feuille de calcul."
+    check: workbook.file_format == "xlsx"
+
+  - id: T101-ONE-TABLE-PER-SHEET
+    severity: error
+    title_en: "One table per worksheet"
+    title_fr: "Un tableau par feuille"
+    description_en: "Each worksheet must contain exactly one table, named tblXX."
+    description_fr: "Chaque feuille doit contenir exactement un tableau, nommé tblXX."
+    check: sheet.table_count == 1 and sheet.name matches "^tbl[0-9]+[A-Za-z]?$"
+
+  - id: T101-UNIQUE-NUMBERING
+    severity: error
+    title_en: "Table numbering must be unique and consistent"
+    title_fr: "La numérotation des tableaux doit être unique et cohérente"
+    description_en: "Tables must be numbered using letters and/or arabic numerals, consistent throughout the publication, each unique."
+    description_fr: "Les tableaux doivent être numérotés à l'aide de lettres et/ou de chiffres arabes, de façon cohérente dans toute la publication, chacun étant unique."
+    check: table_numbers.are_unique() and table_numbers.are_consistent_format()
+
+  - id: T101-GRIDLINES-ON
+    severity: warning
+    title_en: "Gridlines must be turned on"
+    title_fr: "Le quadrillage doit être activé"
+    description_en: "Turn on gridlines in Excel for the table sheet."
+    description_fr: "Activez le quadrillage dans Excel pour la feuille du tableau."
+    check: sheet.gridlines_visible == True
+
+  - id: T101-NO-FORMULAS
+    severity: error
+    title_en: "Formulas are not allowed"
+    title_fr: "Les formules ne sont pas autorisées"
+    description_en: "Formulas cannot be used in the table; all values must be static."
+    description_fr: "Les formules ne peuvent pas être utilisées dans le tableau; toutes les valeurs doivent être statiques."
+    check: not any(cell.has_formula for cell in table.cells)
+
+  - id: T101-NO-COLOR-FILL
+    severity: error
+    title_en: "No color or background fill allowed"
+    title_fr: "Aucune couleur ni remplissage de fond n'est autorisé"
+    description_en: "Color cannot be used in a table, including background color fill."
+    description_fr: "La couleur ne peut pas être utilisée dans un tableau, y compris la couleur de remplissage de fond."
+    check: not any(cell.has_fill_color for cell in table.cells)
+
+  - id: T101-FR-NUMBER-FORMAT
+    severity: warning
+    title_en: "French tables must use English number formatting for processing"
+    title_fr: "Les tableaux français doivent utiliser le format numérique anglais pour le traitement"
+    description_en: "French tables must have data formatted using English number conventions; the tool converts them during processing."
+    description_fr: "Les données des tableaux français doivent être formatées selon les conventions numériques anglaises; l'outil les convertit lors du traitement."
+    check: workbook.language != "fr" or table.numbers_use_english_format()
+
+  - id: T101-UNIT-OF-MEASURE-ROW
+    severity: warning
+    title_en: "Include a unit of measure row when possible"
+    title_fr: "Inclure une ligne d'unité de mesure lorsque possible"
+    description_en: "A unit of measure row should be included whenever possible."
+    description_fr: "Une ligne d'unité de mesure devrait être incluse chaque fois que possible."
+    check: table.has_unit_of_measure_row
+
+  - id: T101-FULL-TEXT-OVER-SYMBOLS
+    severity: info
+    title_en: "Prefer full text over abbreviations or symbols"
+    title_fr: "Préférer le texte complet aux abréviations ou symboles"
+    description_en: "When space permits, use full text instead of abbreviations or symbols (e.g., 'percent' instead of '%')."
+    description_fr: "Lorsque l'espace le permet, utilisez le texte complet plutôt que des abréviations ou des symboles (par ex., 'pour cent' plutôt que '%')."
+    check: heuristic_full_text_preferred(table)
+
+  - id: T101-ROW-STUB-RELATED
+    severity: error
+    title_en: "Row stub must relate to the data section"
+    title_fr: "La ligne d'en-tête doit être liée à la section de données"
+    description_en: "The row stub (far-left column) MUST be related to the content in the data section on the right."
+    description_fr: "La colonne d'en-tête (à l'extrême gauche) DOIT être liée au contenu de la section de données à droite."
+    check: table.row_stub_matches_data_semantics()
+
+  - id: T101-NO-EMPTY-CELLS
+    severity: error
+    title_en: "Tables cannot have empty cells"
+    title_fr: "Les tableaux ne peuvent pas contenir de cellules vides"
+    description_en: "Every data cell must contain a value or an approved standard symbol."
+    description_fr: "Chaque cellule de données doit contenir une valeur ou un symbole normalisé approuvé."
+    check: not any(cell.is_empty for cell in table.data_cells)
+
+  - id: T101-STANDARD-SYMBOLS
+    severity: error
+    title_en: "Use standard table symbols with unmodified definitions"
+    title_fr: "Utiliser les symboles normalisés avec des définitions non modifiées"
+    description_en: "Please provide a symbol per Standard Table Symbols (statcan.gc.ca). Definitions cannot be modified and must match the Standards Division definition, in correct symbol order."
+    description_fr: "Veuillez fournir un symbole conformément aux symboles normalisés des tableaux (statcan.gc.ca). Les définitions ne peuvent pas être modifiées et doivent correspondre à celles de la Division des normes, dans le bon ordre."
+    check: table.symbols_are_standard_and_unmodified()
+
+  - id: T101-SYMBOL-SUPERSCRIPT-COLUMN
+    severity: warning
+    title_en: "Symbols must be superscript in a separate column"
+    title_fr: "Les symboles doivent être en exposant dans une colonne distincte"
+    description_en: "Symbols like E, F, x should be superscript in a separate column beside the data."
+    description_fr: "Les symboles comme E, F, x doivent être en exposant dans une colonne distincte à côté des données."
+    check: table.symbols_in_separate_superscript_column()
+
+  - id: T101-AVOID-ROW-SPANNING
+    severity: warning
+    title_en: "Avoid row spanning; use a header row instead"
+    title_fr: "Éviter la fusion de lignes; utiliser une ligne d'en-tête à la place"
+    description_en: "Row spanning should be avoided when possible; use a header row instead."
+    description_fr: "La fusion de lignes doit être évitée lorsque possible; utilisez plutôt une ligne d'en-tête."
+    check: not table.has_merged_row_spans
+
+  - id: T101-INDENT-FEATURE
+    severity: info
+    title_en: "Use indent feature, not spaces"
+    title_fr: "Utiliser la fonction de retrait, pas des espaces"
+    description_en: "For indentation, use the Excel indent feature, not leading spaces."
+    description_fr: "Pour l'indentation, utilisez la fonction de retrait d'Excel, pas des espaces au début."
+    check: not table.uses_leading_spaces_for_indent
+
+  - id: T101-FOOTNOTES-OWN-ROW
+    severity: warning
+    title_en: "Each footnote, symbol, or note in its own row"
+    title_fr: "Chaque note, symbole ou remarque dans sa propre ligne"
+    description_en: "In the footer of the table, each footnote, symbol definition, and note should be in its own row."
+    description_fr: "Dans le pied de page du tableau, chaque note, définition de symbole et remarque devrait figurer dans sa propre ligne."
+    check: table.footer_items_each_in_own_row()
+
+  - id: T101-SOURCE-PRESENT
+    severity: error
+    title_en: "Source line must be present"
+    title_fr: "La ligne de source doit être présente"
+    description_en: "A source citation must be present in the table footer."
+    description_fr: "Une citation de source doit être présente dans le pied de page du tableau."
+    check: table.has_source_line

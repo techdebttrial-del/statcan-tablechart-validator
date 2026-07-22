@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68.0,<80.0", "wheel>=0.41,<1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "statcan-tablechart-validator"
+version = "0.5.0"
+description = "Bilingual compliance validator for StatCan Tables 101 / Charts 101 workbooks"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "ESR Accelerator Team"},
+]
+keywords = ["statcan", "validation", "bilingual", "streamlit", "excel"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+]
+
+dependencies = [
+    "streamlit>=1.32,<2.0",
+    "openpyxl>=3.1,<4.0",
+    "PyYAML>=6.0,<7.0",
+    "litellm>=1.70,<2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4,<9.0",
+    "pytest-cov>=4.1,<6.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["core*", "app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+pythonpath = ["."]

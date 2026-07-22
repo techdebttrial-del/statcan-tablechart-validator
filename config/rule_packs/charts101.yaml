@@ -1,0 +1,140 @@
+pack: charts101
+version: "1.0.0"
+source: "Statistics Canada - Charts 101 Guide"
+language_neutral: true
+rules:
+  - id: C101-EXCEL-ONLY
+    severity: error
+    title_en: "Chart must be created in Excel, not Word"
+    title_fr: "Le graphique doit être créé dans Excel, pas dans Word"
+    description_en: "Charts must be created in Excel, not in Word, with the data series on the same worksheet as the chart."
+    description_fr: "Les graphiques doivent être créés dans Excel, pas dans Word, avec la série de données sur la même feuille que le graphique."
+    check: chart.source_app == "excel" and chart.data_on_same_sheet
+
+  - id: C101-ONE-CHART-DATA-PER-SHEET
+    severity: warning
+    title_en: "One chart data table per worksheet"
+    title_fr: "Un tableau de données par feuille de graphique"
+    description_en: "One chart data table per worksheet unless charts are part of a group of charts."
+    description_fr: "Un tableau de données de graphique par feuille, sauf si les graphiques font partie d'un groupe."
+    check: sheet.chart_table_count == 1 or chart.is_part_of_group
+
+  - id: C101-NO-EMPTY-CELLS
+    severity: error
+    title_en: "Data table cannot have empty cells"
+    title_fr: "Le tableau de données ne peut pas contenir de cellules vides"
+    description_en: "Data tables backing a chart cannot have empty cells."
+    description_fr: "Les tableaux de données appuyant un graphique ne peuvent pas contenir de cellules vides."
+    check: not any(cell.is_empty for cell in chart.data_table.cells)
+
+  - id: C101-NO-EXTRA-CALCULATIONS
+    severity: warning
+    title_en: "Remove unnecessary calculations from the data table"
+    title_fr: "Retirer les calculs inutiles du tableau de données"
+    description_en: "Remove all unnecessary calculations used to generate the data; the Excel file should only include data used in the chart."
+    description_fr: "Retirez tous les calculs inutiles utilisés pour générer les données; le fichier Excel ne doit inclure que les données utilisées dans le graphique."
+    check: chart.data_table.has_no_helper_calculations
+
+  - id: C101-STANDARD-SYMBOLS
+    severity: error
+    title_en: "Symbols require standard, unmodified definitions"
+    title_fr: "Les symboles nécessitent des définitions normalisées, non modifiées"
+    description_en: "Please provide a symbol per Standard Table Symbols; definitions cannot be modified."
+    description_fr: "Veuillez fournir un symbole conforme aux symboles normalisés; les définitions ne peuvent pas être modifiées."
+    check: chart.symbols_are_standard_and_unmodified()
+
+  - id: C101-MAX-SIX-SERIES
+    severity: warning
+    title_en: "No more than six data series"
+    title_fr: "Pas plus de six séries de données"
+    description_en: "For chart readability, no more than six (6) data series should appear in a chart."
+    description_fr: "Pour la lisibilité, un graphique ne doit pas comporter plus de six (6) séries de données."
+    check: chart.series_count <= 6
+
+  - id: C101-SIZE-WIDTH
+    severity: warning
+    title_en: "Chart width must be 22.5cm to 30cm"
+    title_fr: "La largeur du graphique doit être de 22,5 cm à 30 cm"
+    description_en: "Chart size width minimum 22.5 cm, maximum 30 cm."
+    description_fr: "Largeur minimale du graphique de 22,5 cm, maximale de 30 cm."
+    check: 22.5 <= chart.width_cm <= 30
+
+  - id: C101-SIZE-HEIGHT-MIN
+    severity: warning
+    title_en: "Chart height must start at 11cm"
+    title_fr: "La hauteur du graphique doit commencer à 11 cm"
+    description_en: "Chart height should start at 11 cm and increase as needed."
+    description_fr: "La hauteur du graphique doit commencer à 11 cm et augmenter au besoin."
+    check: chart.height_cm >= 11
+
+  - id: C101-NO-TITLE-SUPERSCRIPT
+    severity: error
+    title_en: "No superscripts in chart titles used as general notes"
+    title_fr: "Aucun exposant dans les titres de graphique utilisés comme notes générales"
+    description_en: "No superscripts in chart titles, especially general notes; use a Note above the Source instead."
+    description_fr: "Aucun exposant dans les titres de graphique, en particulier les notes générales; utilisez plutôt une note au-dessus de la source."
+    check: not chart.title_has_superscript_general_note
+
+  - id: C101-UNIQUE-NUMBERING
+    severity: error
+    title_en: "Chart numbering must be unique and consistent"
+    title_fr: "La numérotation des graphiques doit être unique et cohérente"
+    description_en: "Charts must be numbered using letters and/or arabic numerals, consistent throughout the publication, each unique."
+    description_fr: "Les graphiques doivent être numérotés à l'aide de lettres et/ou de chiffres arabes, de façon cohérente, chacun étant unique."
+    check: chart_numbers.are_unique() and chart_numbers.are_consistent_format()
+
+  - id: C101-NO-UOM-IN-AXIS-LABELS
+    severity: warning
+    title_en: "Units of measure cannot be included in axis labels"
+    title_fr: "Les unités de mesure ne peuvent pas figurer dans les étiquettes des axes"
+    description_en: "Units of measure cannot be included with the axis labels (e.g., '2%' or '2.5$')."
+    description_fr: "Les unités de mesure ne peuvent pas figurer dans les étiquettes des axes (par ex., « 2 % » ou « 2,5 $ »)."
+    check: not axis.labels_contain_unit_of_measure
+
+  - id: C101-GRIDLINES-NO-DATALABELS
+    severity: warning
+    title_en: "Gridlines allowed only without data labels"
+    title_fr: "Le quadrillage n'est permis que sans étiquettes de données"
+    description_en: "Gridlines may be used, however data labels cannot be present together with gridlines."
+    description_fr: "Le quadrillage peut être utilisé, mais les étiquettes de données ne peuvent pas être présentes en même temps."
+    check: not (chart.gridlines_visible and chart.data_labels_visible)
+
+  - id: C101-NO-DUAL-TICKMARKS
+    severity: warning
+    title_en: "Tick marks may not be used on the same axis twice"
+    title_fr: "Les marques de repère ne peuvent pas être utilisées deux fois sur le même axe"
+    description_en: "Tick marks may not be used on the same axis in a duplicated way."
+    description_fr: "Les marques de repère ne peuvent pas être utilisées en double sur le même axe."
+    check: not axis.has_duplicate_tick_marks
+
+  - id: C101-SYMBOL-REQUIRES-NOTE
+    severity: error
+    title_en: "Superscripted symbols require a corresponding note"
+    title_fr: "Les symboles en exposant nécessitent une note correspondante"
+    description_en: "Any superscript symbol used in the chart or its data table requires a corresponding footnote/definition."
+    description_fr: "Tout symbole en exposant utilisé dans le graphique ou son tableau de données nécessite une note ou une définition correspondante."
+    check: chart.every_superscript_has_matching_note()
+
+  - id: C101-HORIZONTAL-LINE-NOTE
+    severity: warning
+    title_en: "Horizontal reference lines require a note"
+    title_fr: "Les lignes de référence horizontales nécessitent une note"
+    description_en: "A horizontal line used as a reference/average scale requires an explanatory note."
+    description_fr: "Une ligne horizontale utilisée comme référence ou échelle moyenne nécessite une note explicative."
+    check: not chart.has_horizontal_reference_line or chart.horizontal_line_has_note
+
+  - id: C101-SOURCE-PRESENT
+    severity: error
+    title_en: "Source line must be present"
+    title_fr: "La ligne de source doit être présente"
+    description_en: "A source citation must be present below the chart/data table notes."
+    description_fr: "Une citation de source doit être présente sous les notes du graphique/tableau de données."
+    check: chart.has_source_line
+
+  - id: C101-MAP-IMAGE-DESCRIPTIVE-TEXT
+    severity: warning
+    title_en: "Maps, figures, or images require descriptive text if no data table"
+    title_fr: "Les cartes, figures ou images nécessitent un texte descriptif en l'absence de tableau de données"
+    description_en: "If a data table cannot be provided for a map/figure/image, prepare descriptive text in a separate document per Accessibility 101."
+    description_fr: "Si un tableau de données ne peut être fourni pour une carte/figure/image, préparez un texte descriptif dans un document distinct conformément à Accessibilité 101."
+    check: chart.type != "map_figure_image" or chart.has_data_table or chart.has_descriptive_text_doc
