@@ -343,13 +343,13 @@ class TestT101UnitOfMeasureRow:
 # ---------------------------------------------------------------------------
 
 class TestT101AvoidRowSpanning:
-    def test_fail_when_merged_cells_present(self):
+    def test_fail_when_merged_row_spans_present(self):
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "tbl1"
         ws["A1"] = "Merged Header"
-        ws.merge_cells("A1:B1")
         ws["A2"] = "Row1"
+        ws.merge_cells("A1:A2")  # vertical merge = row spanning (set values before merge)
         ws["B2"] = 100
         ws["A3"] = "Source: X"
         path = _save_wb(wb)

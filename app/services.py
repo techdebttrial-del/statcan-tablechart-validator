@@ -1,6 +1,8 @@
 """
-Service wiring, mirroring appservices.py in the broader StatCan ESR
-Accelerator: singleton constructors cached via st.cache_resource.
+Service wiring — v2.0 with dual-flavour architecture.
+
+Wires ModeManager, FixSuggester, and the existing Inspector/Translator/Store
+into singleton constructors cached via st.cache_resource.
 """
 from __future__ import annotations
 
@@ -14,6 +16,8 @@ from core.llm_translator import LLMTranslator
 from core.repository_client import RepositoryClient
 from core.project_store import ProjectStore
 from core.report_generator import ReportGenerator
+from core.mode_manager import ModeManager
+from core.fix_suggester import FixSuggester
 
 import logging
 
@@ -34,14 +38,28 @@ def get_inspector() -> ExcelInspector:
 
 
 @st.cache_resource
+def get_mode_manager() -> ModeManager:
+    return ModeManager()
+
+
+@st.cache_resource
+def get_fix_suggester() -> FixSuggester:
+    return FixSuggester(mode_manager=get_mode_manager())
+
+
+@st.cache_resource
 def get_translation_manager() -> TranslationManager:
-    litellm_url = os.environ.get("LITELLM_BASE_URL")
-    if litellm_url:
-        translator = LLMTranslator(base_url=litellm_url)
-        logger.info("TranslationManager using LLMTranslator (base_url=%s)", litellm_url)
-    else:
-        translator = PassthroughTranslator()
-        logger.info("TranslationManager using PassthroughTranslator (no LITELLM_BASE_URL)")
+    mm = get_mode_manager()
+    if mm.use_llm:
+        litellm_url = os.environ.get("LITELLM_BASE_URL", mm.litellm_url)
+        if litellm_url:
+            model = os.environ.get("LITELLM_MODEL", mm.cascade2_model)
+            translator = LLMTranslator(base_url=litellm_url, model=model)
+            logger.info("TranslationManager using LLMTranslator (base_url=%s, model=%s)", litellm_url, model)
+            return TranslationManager(translator=translator)
+
+    translator = PassthroughTranslator()
+    logger.info("TranslationManager using PassthroughTranslator (no LLM)")
     return TranslationManager(translator=translator)
 
 
