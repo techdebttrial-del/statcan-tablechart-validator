@@ -290,10 +290,9 @@ IMPORTANT:
                     {"role": "system", "content": "You are a Statistics Canada formatting expert. Respond with valid JSON only."},
                     {"role": "user", "content": prompt},
                 ],
-                timeout=30,
+                timeout=90,
                 temperature=0.3,
                 max_tokens=2000,
-                response_format={"type": "json_object"},
             )
 
             content = response.choices[0].message.content.strip()
