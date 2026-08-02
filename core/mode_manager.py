@@ -154,7 +154,7 @@ class ModeManager:
             )
             return self._health
 
-        # Probe LiteLLM health endpoint
+        # Probe LiteLLM health — try /v1/models first (more reliable)
         import urllib.request
         import json as json_module
 
@@ -162,20 +162,11 @@ class ModeManager:
         cascade2_loaded = False
         error = None
 
+        # Try /v1/models first (returns 200 with model list)
         try:
-            req = urllib.request.Request(f"{self._litellm_url}/health", method="GET")
+            req = urllib.request.Request(f"{self._litellm_url}/v1/models", method="GET")
             with urllib.request.urlopen(req, timeout=_HEALTH_TIMEOUT) as resp:
                 if resp.status == 200:
-                    litellm_ok = True
-        except Exception as e:
-            error = f"LiteLLM health check failed: {e}"
-            logger.warning(error)
-
-        # Check if Cascade 2 is in model list
-        if litellm_ok:
-            try:
-                req = urllib.request.Request(f"{self._litellm_url}/v1/models", method="GET")
-                with urllib.request.urlopen(req, timeout=_HEALTH_TIMEOUT) as resp:
                     body = resp.read().decode()
                     models_data = json_module.loads(body)
                     model_ids = []
@@ -183,15 +174,17 @@ class ModeManager:
                         model_ids = [m.get("id", "") for m in models_data["data"]]
                     elif "models" in models_data:
                         model_ids = [m.get("name", "") for m in models_data["models"]]
-
-                cascade2_loaded = self._cascade2_model in model_ids
-                if not cascade2_loaded:
-                    logger.warning("Cascade 2 model '%s' not found in LiteLLM models: %s",
-                                   self._cascade2_model, model_ids[:5])
-                    error = f"Model '{self._cascade2_model}' not loaded"
-            except Exception as e:
-                error = f"Model list check failed: {e}"
-                logger.warning(error)
+                    litellm_ok = len(model_ids) > 0
+                    cascade2_loaded = self._cascade2_model in model_ids
+                    if not litellm_ok:
+                        error = "No models returned from LiteLLM"
+                    elif not cascade2_loaded:
+                        logger.warning("Cascade 2 model '%s' not found in LiteLLM models: %s",
+                                       self._cascade2_model, model_ids[:5])
+                        error = f"Model '{self._cascade2_model}' not loaded"
+        except Exception as e:
+            error = f"LiteLLM /v1/models failed: {e}"
+            logger.warning(error)
 
         elapsed_ms = (time.monotonic() - t0) * 1000
 
