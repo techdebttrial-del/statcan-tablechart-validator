@@ -23,6 +23,8 @@ from core.models import (
     ReplacementReason, FindingStatus,
 )
 from core.mode_manager import OperatingMode
+from core.remediation_applier import apply_remediation
+from core.remediation_catalog import remediation_options, approved_symbol_options
 
 st.set_page_config(
     page_title="StatCan Tables/Charts Validator v2.0 | Validateur v2.0",
@@ -199,7 +201,6 @@ with tab_projects:
                         )
 
                     # ---- Deterministic remediation choices ----------------
-                    from core.remediation_catalog import remediation_options, approved_symbol_options
                     options = remediation_options(f.rule_id)
                     if options and f.status == FindingStatus.OPEN:
                         st.markdown("##### 🛠 Deterministic resolution options" if lang == "en" else "##### 🛠 Options de résolution déterministes")
@@ -222,9 +223,28 @@ with tab_projects:
                                 "Approved symbol" if lang == "en" else "Symbole approuvé",
                                 approved_symbol_options(), key=f"rem-symbol-{f.finding_id}",
                             )
-                        if st.button("Record resolution choice" if lang == "en" else "Enregistrer le choix", key=f"rem-save-{f.finding_id}"):
-                            st.session_state[f"rem-recorded-{f.finding_id}"] = {"option": selected["id"], "value": input_value}
-                            st.success("Choice recorded for reviewer approval." if lang == "en" else "Choix enregistré pour approbation du réviseur.")
+                        if st.button("Create new workbook iteration" if lang == "en" else "Créer une nouvelle itération du classeur", key=f"rem-save-{f.finding_id}"):
+                            source_path = os.path.join(
+                                store.repo.root_path,
+                                f"reviews/{project.project_id}/workbooks/{revision.stored_filename}",
+                            )
+                            output_name = f"iteration_{revision.revision_number:02d}_{f.finding_id}_{revision.original_filename}"
+                            output_path = os.path.join(
+                                store.repo.root_path,
+                                f"reviews/{project.project_id}/workbooks/{output_name}",
+                            )
+                            result = apply_remediation(source_path, output_path, f, selected["id"], input_value)
+                            if result.success:
+                                st.session_state[f"rem-recorded-{f.finding_id}"] = {"option": selected["id"], "value": input_value, "path": output_path}
+                                st.success("New workbook iteration created. Review it, then upload it as the next revision." if lang == "en" else "Nouvelle itération créée. Vérifiez-la, puis téléversez-la comme prochaine révision.")
+                                with open(output_path, "rb") as fh:
+                                    st.download_button(
+                                        "Download new workbook iteration" if lang == "en" else "Télécharger la nouvelle itération",
+                                        fh.read(), file_name=output_name,
+                                        key=f"rem-download-{f.finding_id}",
+                                    )
+                            else:
+                                st.warning(result.message)
 
                     # ---- Fix Suggestions (LLM mode only) ----------------
                     if st.session_state.llm_suggestions_enabled and mode_mgr.use_llm and health.mode in (
