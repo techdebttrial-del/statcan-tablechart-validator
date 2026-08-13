@@ -235,8 +235,15 @@ with tab_projects:
                             )
                             result = apply_remediation(source_path, output_path, f, selected["id"], input_value)
                             if result.success:
+                                relative_output = f"reviews/{project.project_id}/workbooks/{output_name}"
+                                with open(output_path, "rb") as generated:
+                                    commit = store.repo.put_file(
+                                        relative_output,
+                                        generated.read(),
+                                        commit_message=f"Create workbook iteration for {f.finding_id}",
+                                    )
                                 st.session_state[f"rem-recorded-{f.finding_id}"] = {"option": selected["id"], "value": input_value, "path": output_path}
-                                st.success("New workbook iteration created. Review it, then upload it as the next revision." if lang == "en" else "Nouvelle itération créée. Vérifiez-la, puis téléversez-la comme prochaine révision.")
+                                st.success((f"New workbook iteration created and saved (commit {commit.commit_id[:8]}). Review it, then upload it as the next revision." if lang == "en" else f"Nouvelle itération créée et enregistrée (commit {commit.commit_id[:8]}). Vérifiez-la, puis téléversez-la comme prochaine révision."))
                                 with open(output_path, "rb") as fh:
                                     st.download_button(
                                         "Download new workbook iteration" if lang == "en" else "Télécharger la nouvelle itération",
