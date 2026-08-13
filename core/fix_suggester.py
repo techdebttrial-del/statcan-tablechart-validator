@@ -311,6 +311,10 @@ IMPORTANT:
                 timeout=90,
                 temperature=0.3,
                 max_tokens=2000,
+                # Keep the JSON response in message.content.  Without this,
+                # Qwen3.6 may consume the budget in reasoning_content and
+                # leave no JSON for the parser.
+                chat_template_kwargs={"enable_thinking": False},
             )
 
             content = response.choices[0].message.content.strip()

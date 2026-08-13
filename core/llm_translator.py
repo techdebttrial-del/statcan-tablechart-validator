@@ -130,6 +130,10 @@ class LLMTranslator:
                     timeout=self._timeout,
                     temperature=0.2,
                     max_tokens=max(len(text) * 3, 512),  # generous headroom
+                    # Qwen3.6 can spend a short request's entire token budget
+                    # in reasoning_content and return empty content.  Notes
+                    # require a direct translation, not a chain of thought.
+                    chat_template_kwargs={"enable_thinking": False},
                 )
                 elapsed = time.monotonic() - t0
                 result = response.choices[0].message.content.strip()  # type: ignore[union-attr]
