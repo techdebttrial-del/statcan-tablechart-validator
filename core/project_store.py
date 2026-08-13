@@ -261,6 +261,7 @@ class ProjectStore:
                     severity=Severity(f["severity"]), sheet_name=f["sheet_name"],
                     location=f["location"], title_en=f["title_en"], title_fr=f["title_fr"],
                     description_en=f["description_en"], description_fr=f["description_fr"],
+                    affected_cells=f.get("affected_cells", []),
                     status=FindingStatus(f["status"]), detected_at=f["detected_at"],
                 ) for f in r.get("findings", [])
             ]

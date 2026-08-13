@@ -135,6 +135,7 @@ class Finding:
     title_fr: str
     description_en: str
     description_fr: str
+    affected_cells: List[str] = field(default_factory=list)
     status: FindingStatus = FindingStatus.OPEN
     detected_at: str = field(default_factory=now_iso)
 

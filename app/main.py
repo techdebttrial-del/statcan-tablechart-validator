@@ -192,6 +192,39 @@ with tab_projects:
                 ):
                     st.write(desc)
                     st.caption(f"{f.sheet_name}: {f.location}")
+                    if f.affected_cells:
+                        st.markdown(
+                            ("**Affected cells:** " if lang == "en" else "**Cellules touchées :** ")
+                            + ", ".join(f"`{f.sheet_name}!{cell}`" for cell in f.affected_cells)
+                        )
+
+                    # ---- Deterministic remediation choices ----------------
+                    from core.remediation_catalog import remediation_options, approved_symbol_options
+                    options = remediation_options(f.rule_id)
+                    if options and f.status == FindingStatus.OPEN:
+                        st.markdown("##### 🛠 Deterministic resolution options" if lang == "en" else "##### 🛠 Options de résolution déterministes")
+                        option_labels = [o["label_en"] if lang == "en" else o["label_fr"] for o in options]
+                        selected_idx = st.selectbox(
+                            "Resolution" if lang == "en" else "Résolution",
+                            range(len(options)),
+                            format_func=lambda i: option_labels[i],
+                            key=f"rem-option-{f.finding_id}",
+                        )
+                        selected = options[selected_idx]
+                        input_value = None
+                        if selected["input"] == "text":
+                            input_value = st.text_input(
+                                "Enter value or instruction" if lang == "en" else "Saisir la valeur ou l'instruction",
+                                key=f"rem-value-{f.finding_id}",
+                            )
+                        elif selected["input"] == "select":
+                            input_value = st.selectbox(
+                                "Approved symbol" if lang == "en" else "Symbole approuvé",
+                                approved_symbol_options(), key=f"rem-symbol-{f.finding_id}",
+                            )
+                        if st.button("Record resolution choice" if lang == "en" else "Enregistrer le choix", key=f"rem-save-{f.finding_id}"):
+                            st.session_state[f"rem-recorded-{f.finding_id}"] = {"option": selected["id"], "value": input_value}
+                            st.success("Choice recorded for reviewer approval." if lang == "en" else "Choix enregistré pour approbation du réviseur.")
 
                     # ---- Fix Suggestions (LLM mode only) ----------------
                     if st.session_state.llm_suggestions_enabled and mode_mgr.use_llm and health.mode in (

@@ -358,7 +358,8 @@ class ExcelInspector:
 
     # ---- Rule application ---------------------------------------------
 
-    def _make_finding(self, rule_id: str, pack: str, sheet_name: str, location: str) -> Finding:
+    def _make_finding(self, rule_id: str, pack: str, sheet_name: str, location: str,
+                      affected_cells: Optional[List[str]] = None) -> Finding:
         rule = self.loader.rule_by_id(rule_id) if self.loader else None
         if rule:
             return Finding(
@@ -372,6 +373,7 @@ class ExcelInspector:
                 title_fr=rule.title_fr,
                 description_en=rule.description_en,
                 description_fr=rule.description_fr,
+                affected_cells=affected_cells or [],
                 status=FindingStatus.OPEN,
             )
         # Fallback if rule not found in pack
@@ -386,6 +388,7 @@ class ExcelInspector:
             title_fr=f"Violation : {rule_id}",
             description_en=f"Workbook violates Table 101 / Chart 101 rule {rule_id} at {sheet_name}:{location}.",
             description_fr=f"Le classeur enfreint la règle Tableaux 101 / Graphiques 101 {rule_id} à {sheet_name}:{location}.",
+            affected_cells=affected_cells or [],
             status=FindingStatus.OPEN,
         )
 
@@ -402,15 +405,15 @@ class ExcelInspector:
 
         # T101-NO-FORMULAS
         if p.has_formulas:
+            refs = self._matching_cells(ws, lambda c: isinstance(c.value, str) and c.value.startswith("="))
             findings.append(self._make_finding("T101-NO-FORMULAS", "tables101", ws.title,
-                                                self._cell_location(ws, lambda c: isinstance(c.value, str) and c.value.startswith("="),
-                                                                    f"{p.formula_cells} formula cell(s)")))
+                                                self._format_cell_location(refs, f"{p.formula_cells} formula cell(s)"), refs))
 
         # T101-NO-COLOR-FILL
         if p.has_fill_color:
+            refs = self._matching_cells(ws, self._has_nonwhite_fill)
             findings.append(self._make_finding("T101-NO-COLOR-FILL", "tables101", ws.title,
-                                                self._cell_location(ws, self._has_nonwhite_fill,
-                                                                    f"{p.color_fill_cells} filled cell(s)")))
+                                                self._format_cell_location(refs, f"{p.color_fill_cells} filled cell(s)"), refs))
 
         # T101-UNIT-OF-MEASURE-ROW
         if not p.unit_of_measure_row_present:
@@ -418,8 +421,9 @@ class ExcelInspector:
 
         # T101-NO-EMPTY-CELLS
         if p.empty_data_cells > 0:
+            refs = self._empty_data_cells(ws)
             findings.append(self._make_finding("T101-NO-EMPTY-CELLS", "tables101", ws.title,
-                                                 self._empty_data_location(ws, p.empty_data_cells)))
+                                                 self._format_cell_location(refs, f"{p.empty_data_cells} empty cell(s)"), refs))
 
         # T101-STANDARD-SYMBOLS — exact match from standard registry
         if not p.symbols_found:
@@ -446,9 +450,9 @@ class ExcelInspector:
 
         # T101-INDENT-FEATURE
         if p.has_leading_spaces_indent:
+            refs = self._matching_cells(ws, lambda c: isinstance(c.value, str) and len(c.value) - len(c.value.lstrip()) >= 2)
             findings.append(self._make_finding("T101-INDENT-FEATURE", "tables101", ws.title,
-                                                self._cell_location(ws, lambda c: isinstance(c.value, str) and len(c.value) - len(c.value.lstrip()) >= 2,
-                                                                    "data cells")))
+                                                self._format_cell_location(refs, "data cells"), refs))
 
         # T101-ROW-STUB-RELATED
         if p.is_table_sheet and p.data_cell_count > 0 and not p.row_stubs_present:
@@ -456,15 +460,15 @@ class ExcelInspector:
 
         # T101-FULL-TEXT-OVER-SYMBOLS
         if p.has_abbreviation_or_symbol:
+            refs = self._matching_cells(ws, lambda c: isinstance(c.value, str) and any(token in c.value for token in ('%', '$', '&')))
             findings.append(self._make_finding("T101-FULL-TEXT-OVER-SYMBOLS", "tables101", ws.title,
-                                                self._cell_location(ws, lambda c: isinstance(c.value, str) and any(token in c.value for token in ('%', '$', '&')),
-                                                                    "data cells")))
+                                                self._format_cell_location(refs, "data cells"), refs))
 
         # T101-FR-NUMBER-FORMAT (language-specific)
         if language == "fr" and p.has_french_decimal_comma:
+            refs = self._matching_cells(ws, lambda c: isinstance(c.value, str) and re.match(r'^-?\d+,\d+$', c.value.strip()))
             findings.append(self._make_finding("T101-FR-NUMBER-FORMAT", "tables101", ws.title,
-                                                self._cell_location(ws, lambda c: isinstance(c.value, str) and re.match(r'^-?\d+,\d+$', c.value.strip()),
-                                                                    "data cells")))
+                                                self._format_cell_location(refs, "data cells"), refs))
 
         return findings
 
@@ -577,23 +581,24 @@ class ExcelInspector:
         except (ValueError, AttributeError):
             return False
 
-    def _cell_location(self, ws: Worksheet, predicate, fallback: str) -> str:
-        refs = [cell.coordinate for row in ws.iter_rows() for cell in row if predicate(cell)]
+    def _matching_cells(self, ws: Worksheet, predicate) -> List[str]:
+        return [cell.coordinate for row in ws.iter_rows() for cell in row if predicate(cell)]
+
+    def _format_cell_location(self, refs: List[str], fallback: str) -> str:
         if not refs:
             return fallback
         suffix = f"; {fallback}" if len(refs) > 1 else ""
         return f"{', '.join(refs[:8])}{'…' if len(refs) > 8 else ''}{suffix}"
 
-    def _empty_data_location(self, ws: Worksheet, count: int) -> str:
+    def _empty_data_cells(self, ws: Worksheet) -> List[str]:
         data_end = (ws.max_row or 0) - 1
         for row_idx in range(2, (ws.max_row or 0) + 1):
             values = [str(c.value or "").lower() for c in ws[row_idx]]
             if any(re.search(r"\b(source|note)\b", value) for value in values):
                 data_end = row_idx - 1
                 break
-        refs = [cell.coordinate for row in ws.iter_rows(min_row=2, max_row=max(1, data_end), min_col=2, max_col=ws.max_column or 2)
+        return [cell.coordinate for row in ws.iter_rows(min_row=2, max_row=max(1, data_end), min_col=2, max_col=ws.max_column or 2)
                 for cell in row if cell.value is None]
-        return f"{', '.join(refs[:8])}{'…' if len(refs) > 8 else ''}; {count} empty cell(s)" if refs else f"{count} empty cell(s)"
 
     def _chart_location(self, chart: ChartBase) -> str:
         title = self._get_chart_title(chart) or "untitled chart"
