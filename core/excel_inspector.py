@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Set
 
 import openpyxl
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 try:
     from openpyxl.chart._chart import ChartBase
@@ -402,12 +403,14 @@ class ExcelInspector:
         # T101-NO-FORMULAS
         if p.has_formulas:
             findings.append(self._make_finding("T101-NO-FORMULAS", "tables101", ws.title,
-                                                f"{p.formula_cells} formula cell(s)"))
+                                                self._cell_location(ws, lambda c: isinstance(c.value, str) and c.value.startswith("="),
+                                                                    f"{p.formula_cells} formula cell(s)")))
 
         # T101-NO-COLOR-FILL
         if p.has_fill_color:
             findings.append(self._make_finding("T101-NO-COLOR-FILL", "tables101", ws.title,
-                                                f"{p.color_fill_cells} filled cell(s)"))
+                                                self._cell_location(ws, self._has_nonwhite_fill,
+                                                                    f"{p.color_fill_cells} filled cell(s)")))
 
         # T101-UNIT-OF-MEASURE-ROW
         if not p.unit_of_measure_row_present:
@@ -416,7 +419,7 @@ class ExcelInspector:
         # T101-NO-EMPTY-CELLS
         if p.empty_data_cells > 0:
             findings.append(self._make_finding("T101-NO-EMPTY-CELLS", "tables101", ws.title,
-                                                 f"{p.empty_data_cells} empty cell(s)"))
+                                                 self._empty_data_location(ws, p.empty_data_cells)))
 
         # T101-STANDARD-SYMBOLS — exact match from standard registry
         if not p.symbols_found:
@@ -430,7 +433,7 @@ class ExcelInspector:
         # T101-AVOID-ROW-SPANNING
         if p.merged_row_spans > 0:
             findings.append(self._make_finding("T101-AVOID-ROW-SPANNING", "tables101", ws.title,
-                                                 f"{p.merged_row_spans} merged row range(s)"))
+                                                 f"merged range(s): {', '.join(str(r) for r in ws.merged_cells.ranges if r.min_row != r.max_row)}"))
 
         # T101-FOOTNOTES-OWN-ROW
         if p.footer_item_count >= 2 and not p.footer_rows_separated:
@@ -443,7 +446,9 @@ class ExcelInspector:
 
         # T101-INDENT-FEATURE
         if p.has_leading_spaces_indent:
-            findings.append(self._make_finding("T101-INDENT-FEATURE", "tables101", ws.title, "data cells"))
+            findings.append(self._make_finding("T101-INDENT-FEATURE", "tables101", ws.title,
+                                                self._cell_location(ws, lambda c: isinstance(c.value, str) and len(c.value) - len(c.value.lstrip()) >= 2,
+                                                                    "data cells")))
 
         # T101-ROW-STUB-RELATED
         if p.is_table_sheet and p.data_cell_count > 0 and not p.row_stubs_present:
@@ -451,11 +456,15 @@ class ExcelInspector:
 
         # T101-FULL-TEXT-OVER-SYMBOLS
         if p.has_abbreviation_or_symbol:
-            findings.append(self._make_finding("T101-FULL-TEXT-OVER-SYMBOLS", "tables101", ws.title, "data cells"))
+            findings.append(self._make_finding("T101-FULL-TEXT-OVER-SYMBOLS", "tables101", ws.title,
+                                                self._cell_location(ws, lambda c: isinstance(c.value, str) and any(token in c.value for token in ('%', '$', '&')),
+                                                                    "data cells")))
 
         # T101-FR-NUMBER-FORMAT (language-specific)
         if language == "fr" and p.has_french_decimal_comma:
-            findings.append(self._make_finding("T101-FR-NUMBER-FORMAT", "tables101", ws.title, "data cells"))
+            findings.append(self._make_finding("T101-FR-NUMBER-FORMAT", "tables101", ws.title,
+                                                self._cell_location(ws, lambda c: isinstance(c.value, str) and re.match(r'^-?\d+,\d+$', c.value.strip()),
+                                                                    "data cells")))
 
         return findings
 
@@ -486,7 +495,7 @@ class ExcelInspector:
         # C101-MAX-SIX-SERIES
         if p.max_series_in_any_chart > 6:
             findings.append(self._make_finding("C101-MAX-SIX-SERIES", "charts101", ws.title,
-                                                 f"{p.max_series_in_any_chart} series"))
+                                                 f"{self._chart_location(p.charts[0])}; {p.max_series_in_any_chart} series"))
 
         # C101-SIZE-WIDTH and C101-SIZE-HEIGHT-MIN
         for ch in p.charts:
@@ -494,12 +503,12 @@ class ExcelInspector:
             width_cm = self._chart_width_cm(ch)
             if width_cm is not None and not (CHART_WIDTH_MIN_CM <= width_cm <= CHART_WIDTH_MAX_CM):
                 findings.append(self._make_finding("C101-SIZE-WIDTH", "charts101", ws.title,
-                                                     f"{chart_name}: {width_cm:.1f}cm"))
+                                                     f"{self._chart_location(ch)}; width {width_cm:.1f}cm"))
 
             height_cm = self._chart_height_cm(ch)
             if height_cm is not None and height_cm < CHART_HEIGHT_MIN_CM:
                 findings.append(self._make_finding("C101-SIZE-HEIGHT-MIN", "charts101", ws.title,
-                                                     f"{chart_name}: {height_cm:.1f}cm"))
+                                                     f"{self._chart_location(ch)}; height {height_cm:.1f}cm"))
 
         # C101-NO-TITLE-SUPERSCRIPT
         if p.chart_title_text and '^' in p.chart_title_text:
@@ -558,6 +567,41 @@ class ExcelInspector:
         except (AttributeError, TypeError):
             pass
         return "chart"
+
+    def _has_nonwhite_fill(self, cell) -> bool:
+        if not cell.fill or not cell.fill.fgColor:
+            return False
+        try:
+            rgb = str(cell.fill.fgColor.rgb)
+            return rgb not in ("00000000", "0", "FFFFFFFF")
+        except (ValueError, AttributeError):
+            return False
+
+    def _cell_location(self, ws: Worksheet, predicate, fallback: str) -> str:
+        refs = [cell.coordinate for row in ws.iter_rows() for cell in row if predicate(cell)]
+        if not refs:
+            return fallback
+        suffix = f"; {fallback}" if len(refs) > 1 else ""
+        return f"{', '.join(refs[:8])}{'…' if len(refs) > 8 else ''}{suffix}"
+
+    def _empty_data_location(self, ws: Worksheet, count: int) -> str:
+        data_end = (ws.max_row or 0) - 1
+        for row_idx in range(2, (ws.max_row or 0) + 1):
+            values = [str(c.value or "").lower() for c in ws[row_idx]]
+            if any(re.search(r"\b(source|note)\b", value) for value in values):
+                data_end = row_idx - 1
+                break
+        refs = [cell.coordinate for row in ws.iter_rows(min_row=2, max_row=max(1, data_end), min_col=2, max_col=ws.max_column or 2)
+                for cell in row if cell.value is None]
+        return f"{', '.join(refs[:8])}{'…' if len(refs) > 8 else ''}; {count} empty cell(s)" if refs else f"{count} empty cell(s)"
+
+    def _chart_location(self, chart: ChartBase) -> str:
+        title = self._get_chart_title(chart) or "untitled chart"
+        anchor = getattr(chart, "anchor", None)
+        marker = getattr(anchor, "_from", None)
+        if marker is not None:
+            return f"chart '{title[:50]}' anchor {get_column_letter(marker.col + 1)}{marker.row + 1}"
+        return f"chart '{title[:50]}'"
 
     def _chart_width_cm(self, chart: ChartBase) -> Optional[float]:
         try:

@@ -38,6 +38,8 @@ if "show_suggestions" not in st.session_state:
     st.session_state.show_suggestions = {}
 if "use_llm" not in st.session_state:
     st.session_state.use_llm = True
+if "llm_suggestions_enabled" not in st.session_state:
+    st.session_state.llm_suggestions_enabled = False
 
 store = get_project_store()
 reportgen = get_report_generator()
@@ -84,6 +86,13 @@ with st.sidebar:
             if lang == "en"
             else f"☁️ Escalade infonuagique : {health.cloud_escalations_used}/{health.max_cloud_escalations} utilisée"
         )
+
+    st.session_state.llm_suggestions_enabled = st.checkbox(
+        "Generate slow LLM fix suggestions" if lang == "en" else "Générer les suggestions LLM lentes",
+        value=st.session_state.llm_suggestions_enabled,
+        help=("Validation is deterministic and immediate. Leave this off to review locations first; "
+              "enable it only when you want suggestions for expanded findings."),
+    )
 
     st.markdown("---")
     st.caption("StatCan Tables/Charts Validator v2.0")
@@ -185,7 +194,7 @@ with tab_projects:
                     st.caption(f"{f.sheet_name}: {f.location}")
 
                     # ---- Fix Suggestions (LLM mode only) ----------------
-                    if mode_mgr.use_llm and health.mode in (
+                    if st.session_state.llm_suggestions_enabled and mode_mgr.use_llm and health.mode in (
                         OperatingMode.LLM_ASSISTED, OperatingMode.CLOUD_ESCALATION
                     ):
                         suggestions = fix_suggester.suggest_fixes(f)
