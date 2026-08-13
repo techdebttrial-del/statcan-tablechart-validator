@@ -169,10 +169,15 @@ class ExcelInspector:
                     # Superscript check: look for superscript markers like ^ or HTML tags
                     if '^' in cell.value or '<sup>' in cell.value.lower() or 'superscript' in cell.value.lower():
                         has_superscript_text = True
+                # Excel's native superscript formatting is the authoritative
+                # signal for symbol placement; text markers are only a
+                # fallback for synthetic fixtures and imported text.
+                if getattr(cell.font, "vertAlign", None) == "superscript":
+                    has_superscript_text = True
 
-                    # Abbreviation/symbol heuristic check
-                    if '%' in cell.value or '$' in cell.value or '&' in cell.value:
-                        has_abbreviation_or_symbol = True
+                # Abbreviation/symbol heuristic check
+                if isinstance(cell.value, str) and any(token in cell.value for token in ('%', '$', '&')):
+                    has_abbreviation_or_symbol = True
 
                 # Color fill detection
                 if cell.fill and cell.fill.fgColor:
@@ -333,7 +338,13 @@ class ExcelInspector:
         max_col = ws.max_column or 0
         if max_row < 3 or max_col < 2:
             return 0, 0
-        for row in ws.iter_rows(min_row=2, max_row=max_row - 1, min_col=2, max_col=max_col):
+        data_end = max_row - 1
+        for row_idx in range(2, max_row + 1):
+            row_values = [str(c.value or "").lower() for c in ws[row_idx]]
+            if any(re.search(r"\b(source|note)\b", value) for value in row_values):
+                data_end = row_idx - 1
+                break
+        for row in ws.iter_rows(min_row=2, max_row=max(1, data_end), min_col=2, max_col=max_col):
             for cell in row:
                 total_count += 1
                 if cell.value is None:
@@ -550,6 +561,10 @@ class ExcelInspector:
 
     def _chart_width_cm(self, chart: ChartBase) -> Optional[float]:
         try:
+            anchor = getattr(chart, "anchor", None)
+            ext = getattr(anchor, "ext", None)
+            if ext is not None and getattr(ext, "cx", None):
+                return float(ext.cx) * EMU_TO_CM
             width = getattr(chart, "width", None)
             if width is not None:
                 if hasattr(width, "val"):
@@ -561,6 +576,10 @@ class ExcelInspector:
 
     def _chart_height_cm(self, chart: ChartBase) -> Optional[float]:
         try:
+            anchor = getattr(chart, "anchor", None)
+            ext = getattr(anchor, "ext", None)
+            if ext is not None and getattr(ext, "cy", None):
+                return float(ext.cy) * EMU_TO_CM
             height = getattr(chart, "height", None)
             if height is not None:
                 if hasattr(height, "val"):

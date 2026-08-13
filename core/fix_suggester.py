@@ -181,15 +181,33 @@ class FixSuggester:
             # Determine what to modify based on applies_to
             if suggestion.applies_to.startswith("sheet_property:"):
                 prop = suggestion.applies_to.split(":", 1)[1]
-                ws_name = suggestion.finding_id  # not ideal — needs sheet context
-                # We'll handle sheet-level changes
-                pass
+                # Sheet-level targets must identify the worksheet explicitly:
+                # ``sheet_property:<sheet>.<property>``.  Reject ambiguous
+                # suggestions rather than silently modifying the active sheet.
+                target = prop.split(".", 1)
+                if len(target) != 2 or target[0] not in wb.sheetnames:
+                    return FixResult(
+                        success=False,
+                        message="Sheet property target must be '<sheet>.<property>'.",
+                        message_fr="La cible de propriété doit être '<feuille>.<propriété>'.",
+                    )
+                ws = wb[target[0]]
+                if target[1] == "gridlines":
+                    ws.sheet_view.showGridLines = str(change).lower() in {"true", "1", "yes", "on"}
+                else:
+                    return FixResult(
+                        success=False,
+                        message=f"Unsupported sheet property '{target[1]}'.",
+                        message_fr=f"Propriété de feuille non prise en charge : '{target[1]}'.",
+                    )
 
             elif ":" in suggestion.applies_to:
                 # Cell reference format: "SheetName:A1"
                 parts = suggestion.applies_to.split(":", 1)
                 sheet_ref = parts[0]
                 cell_ref = parts[1]
+                if "!" in cell_ref:
+                    sheet_ref, cell_ref = cell_ref.split("!", 1)
                 if sheet_ref in wb.sheetnames:
                     ws = wb[sheet_ref]
                     ws[cell_ref] = change

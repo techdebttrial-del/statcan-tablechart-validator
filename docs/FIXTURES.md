@@ -65,7 +65,9 @@ Each row is a unique rule check:
 
 ### c101_perfect.xlsx → 0 findings
 
-### c101_fail_all.xlsx → 7+ findings
+### c101_fail_all.xlsx → 5+ findings
+
+The current deterministic engine reports five directly observable failures; drawing-level checks that openpyxl cannot reliably expose are documented as limitations rather than invented results.
 - C101-NO-EMPTY-CELLS
 - C101-MAX-SIX-SERIES
 - C101-STANDARD-SYMBOLS

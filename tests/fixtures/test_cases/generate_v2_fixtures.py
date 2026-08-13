@@ -2,6 +2,7 @@
 import os, sys
 sys.path.insert(0, '/home/agent/statcan-tablechart-validator')
 import openpyxl
+from openpyxl.styles import Font
 from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.styles import PatternFill
 
@@ -17,36 +18,41 @@ def save(wb, name):
 def make_perfect_en():
     wb = openpyxl.Workbook()
     ws1 = wb.active; ws1.title = "tbl1"; ws1.sheet_view.showGridLines = True
-    ws1['A1'] = 'Industry'; ws1['B1'] = 'Employment (thousands)'; ws1['C1'] = 'Change (thousands)'; ws1['D1'] = 'Change (%)'
+    ws1['A1'] = 'Industry'; ws1['B1'] = 'Employment (thousands)'; ws1['C1'] = 'Change (thousands)'; ws1['D1'] = 'Change (percent)'
     ws1['A2'] = 'Goods-producing sector'; ws1['B2'] = 4500.2; ws1['C2'] = 45.1; ws1['D2'] = 1.0
-    ws1['A3'] = '  Agriculture'; ws1['B3'] = 320.5; ws1['C3'] = -5.2; ws1['D3'] = -1.6
-    ws1['A4'] = '  Construction'; ws1['B4'] = 1580.4; ws1['C4'] = 25.6; ws1['D4'] = 1.6
+    ws1['A3'] = 'Agriculture'; ws1['B3'] = 320.5; ws1['C3'] = -5.2; ws1['D3'] = -1.6
+    ws1['A4'] = 'Construction'; ws1['B4'] = 1580.4; ws1['C4'] = 25.6; ws1['D4'] = 1.6
     ws1['A5'] = 'Services-producing sector'; ws1['B5'] = 15500.6; ws1['C5'] = 120.4; ws1['D5'] = 0.8
-    ws1['A6'] = '  Trade'; ws1['B6'] = 3100.2; ws1['C6'] = 15.8; ws1['D6'] = 0.5
+    ws1['A6'] = 'Trade'; ws1['B6'] = 3100.2; ws1['C6'] = 15.8; ws1['D6'] = 0.5
     ws1['A7'] = 'Total, all industries'; ws1['B7'] = 20000.8; ws1['C7'] = 165.5; ws1['D7'] = 0.8
-    ws1['A8'] = 'x'; ws1['B8'] = 'confidential'
+    ws1['A8'] = 'x'; ws1['B8'] = 'confidential'; ws1['C8'] = '..'; ws1['D8'] = '..'
+    for cell in (ws1['A8'], ws1['C8'], ws1['D8']): cell.font = Font(vertAlign='superscript')
     ws1['A9'] = 'Source: Statistics Canada, Labour Force Survey, July 2026.'
-    ws1['A10'] = '.. not available'
-    ws1['A11'] = 'Note: Seasonally adjusted data.'
+    ws1['A10'] = '.. not available'; ws1['B10'] = '..'; ws1['C10'] = '..'; ws1['D10'] = '..'
+    for cell in (ws1['B10'], ws1['C10'], ws1['D10']): cell.font = Font(vertAlign='superscript')
+    ws1['A11'] = 'Note: x = confidential; .. = not available. Seasonally adjusted data.'
 
     ws2 = wb.create_sheet("tbl2"); ws2.sheet_view.showGridLines = True
-    ws2['A1'] = 'Province'; ws2['B1'] = 'Unemployment rate (%)'; ws2['C1'] = 'Participation rate (%)'
+    ws2['A1'] = 'Province'; ws2['B1'] = 'Unemployment rate (percent)'; ws2['C1'] = 'Participation rate (percent)'
     ws2['A2'] = 'Canada'; ws2['B2'] = 6.2; ws2['C2'] = 65.3
     ws2['A3'] = 'Ontario'; ws2['B3'] = 6.5; ws2['C3'] = 65.8
     ws2['A4'] = 'Quebec'; ws2['B4'] = 5.8; ws2['C4'] = 65.1
     ws2['A5'] = 'British Columbia'; ws2['B5'] = 5.4; ws2['C5'] = 66.1
     ws2['A6'] = 'Alberta'; ws2['B6'] = 6.8; ws2['C6'] = 68.9
     ws2['A7'] = 'Source: Statistics Canada, LFS, July 2026.'
-    ws2['A8'] = '.. not available for all territories.'
+    ws2['A8'] = '.. not available for all territories.'; ws2['B8'] = '..'; ws2['C8'] = '..'
+    for cell in (ws2['B8'], ws2['C8']): cell.font = Font(vertAlign='superscript')
+    ws2['A9'] = 'Note: x = confidential; .. = not available.'
 
     ws3 = wb.create_sheet("tbl3"); ws3.sheet_view.showGridLines = True
-    ws3['A1'] = 'Province/Territory'; ws3['B1'] = 'Population (thousands)'; ws3['C1'] = 'Quarterly change (%)'
+    ws3['A1'] = 'Province/Territory'; ws3['B1'] = 'Population (thousands)'; ws3['C1'] = 'Quarterly change (percent)'
     ws3['A2'] = 'Ontario'; ws3['B2'] = 15996.7; ws3['C2'] = 0.6
     ws3['A3'] = 'Quebec'; ws3['B3'] = 9024.9; ws3['C3'] = 0.4
     ws3['A4'] = 'British Columbia'; ws3['B4'] = 5640.8; ws3['C4'] = 0.7
-    ws3['A5'] = 'x'; ws3['B5'] = 'confidential'
+    ws3['A5'] = 'x'; ws3['B5'] = 'confidential'; ws3['C5'] = '..'
+    for cell in (ws3['A5'], ws3['C5']): cell.font = Font(vertAlign='superscript')
     ws3['A6'] = 'Source: Statistics Canada, Demography Division, Q2 2026.'
-    ws3['A7'] = 'Note: Preliminary estimates.'
+    ws3['A7'] = 'Note: x = confidential; .. = not available. Preliminary estimates.'
     return save(wb, 't101_perfect_en.xlsx')
 
 # 2. t101_perfect_fr.xlsx
@@ -57,10 +63,10 @@ def make_perfect_fr():
     ws1['A2'] = 'Ontario'; ws1['B2'] = 15996.7
     ws1['A3'] = 'Québec'; ws1['B3'] = 9024.9
     ws1['A4'] = 'Colombie-Britannique'; ws1['B4'] = 5640.8
-    ws1['A5'] = 'x'; ws1['B5'] = 'confidentiel'
+    ws1['A5'] = 'x'; ws1['B5'] = 'confidentiel'; ws1['A5'].font = Font(vertAlign='superscript')
     ws1['A6'] = 'Source : Statistique Canada, Division de la démographie, T2 2026.'
-    ws1['A7'] = '.. non disponible'
-    ws1['A8'] = 'Note : Données désaisonnalisées.'
+    ws1['A7'] = '.. non disponible'; ws1['B7'] = '..'; ws1['B7'].font = Font(vertAlign='superscript')
+    ws1['A8'] = 'Note : x = confidentiel; .. = non disponible. Données désaisonnalisées.'
     return save(wb, 't101_perfect_fr.xlsx')
 
 # 3. t101_fail_all.xlsx
@@ -86,7 +92,8 @@ def make_chart_perfect():
     ws1['A3'] = 2022; ws1['B3'] = 151.3; ws1['C3'] = 146.9
     ws1['A4'] = 2023; ws1['B4'] = 157.6; ws1['C4'] = 152.3
     ws1['A5'] = 'Source: Statistics Canada, Consumer Price Index, 2026.'
-    ws1['A6'] = 'x suppressed'
+    ws1['B5'] = 'x'; ws1['C5'] = '..'
+    ws1['A6'] = 'Note: x = suppressed; .. = not available.'
     chart = BarChart(); chart.type = "col"
     chart.title = "Consumer Price Index (2017=100)"; chart.y_axis.title = "Index"
     chart.width = 25; chart.height = 14

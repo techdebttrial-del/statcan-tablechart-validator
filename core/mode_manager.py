@@ -145,15 +145,18 @@ class ModeManager:
         self._last_health_check = time.monotonic()
         t0 = time.monotonic()
 
-        if not self._use_llm or not self._litellm_available:
+        if not self._use_llm:
             self._mode = OperatingMode.OFFLINE
             self._health = HealthStatus(
                 mode=OperatingMode.OFFLINE,
                 gateway_ok=False,
-                error="LLM assistance disabled" if not self._use_llm else "litellm not installed",
+                error="LLM assistance disabled",
             )
             return self._health
 
+        # Probe the OpenAI-compatible gateway directly.  This keeps health
+        # status accurate even when the optional litellm client is absent.
+        # Suggestion/translation calls still require litellm and degrade safely.
         # Probe LiteLLM health — try /v1/models first (more reliable)
         import urllib.request
         import json as json_module

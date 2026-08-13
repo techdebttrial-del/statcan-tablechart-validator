@@ -175,7 +175,7 @@ with tab_projects:
             st.subheader(f"{t(lang,'findings')} — Revision {revision.revision_number}")
             st.write(f"**{revision.compliance_status.value}**")
 
-            for f in revision.findings:
+            for f in revision.findings[:200]:
                 title = f.title_en if lang == "en" else f.title_fr
                 desc = f.description_en if lang == "en" else f.description_fr
                 with st.expander(
@@ -210,8 +210,12 @@ with tab_projects:
                                         "✅ Accept" if lang == "en" else "✅ Accepter",
                                         key=f"acc-{f.finding_id}-{i}",
                                     ):
-                                        result = fix_suggester.apply_suggestion(
+                                        workbook_path = os.path.join(
+                                            store.repo.root_path,
                                             f"reviews/{project.project_id}/workbooks/{revision.stored_filename}",
+                                        )
+                                        result = fix_suggester.apply_suggestion(
+                                            workbook_path,
                                             s,
                                         )
                                         if result.success:
