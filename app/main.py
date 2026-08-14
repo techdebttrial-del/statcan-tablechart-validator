@@ -194,10 +194,11 @@ with tab_projects:
                 ):
                     st.write(desc)
                     st.caption(f"{f.sheet_name}: {f.location}")
-                    if f.affected_cells:
+                    affected_cells = getattr(f, "affected_cells", None) or []
+                    if affected_cells:
                         st.markdown(
                             ("**Affected cells:** " if lang == "en" else "**Cellules touchées :** ")
-                            + ", ".join(f"`{f.sheet_name}!{cell}`" for cell in f.affected_cells)
+                            + ", ".join(f"`{f.sheet_name}!{cell}`" for cell in affected_cells)
                         )
 
                     # ---- Deterministic remediation choices ----------------
