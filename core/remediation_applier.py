@@ -20,6 +20,17 @@ class RemediationResult:
     output_path: Optional[str] = None
 
 
+def resolve_affected_cells(source_path: str, finding: Finding) -> list[str]:
+    """Return exact writable cells, refreshing legacy findings when needed."""
+    affected_cells = list(getattr(finding, "affected_cells", None) or [])
+    if affected_cells:
+        return affected_cells
+    refreshed = ExcelInspector().inspect_workbook(source_path)
+    match = next((item for item in refreshed
+                  if item.rule_id == finding.rule_id and item.sheet_name == finding.sheet_name), None)
+    return list(getattr(match, "affected_cells", None) or []) if match else []
+
+
 def _number_or_text(value: str):
     try:
         return int(value)
@@ -31,7 +42,7 @@ def _number_or_text(value: str):
 
 
 def apply_remediation(source_path: str, target_path: str, finding: Finding,
-                      option_id: str, value: Optional[str]) -> RemediationResult:
+                      option_id: str, value: Optional[str], target_cell: Optional[str] = None) -> RemediationResult:
     """Create target_path from source_path and apply one approved choice.
 
     The source is never opened for writing. Unsupported/no-op choices return
@@ -49,17 +60,11 @@ def apply_remediation(source_path: str, target_path: str, finding: Finding,
     # Older persisted revisions do not have structured coordinates. Refresh
     # the deterministic finding from the unchanged source workbook so those
     # revisions remain repairable after the application is upgraded.
-    affected_cells = list(getattr(finding, "affected_cells", None) or [])
-    if not affected_cells and finding.rule_id in {
-        "T101-NO-FORMULAS", "T101-NO-COLOR-FILL", "T101-NO-EMPTY-CELLS",
-        "T101-INDENT-FEATURE", "T101-FULL-TEXT-OVER-SYMBOLS",
-        "T101-FR-NUMBER-FORMAT", "C101-NO-EMPTY-CELLS",
-        "C101-NO-EXTRA-CALCULATIONS",
-    }:
-        refreshed = ExcelInspector().inspect_workbook(source_path)
-        match = next((item for item in refreshed
-                      if item.rule_id == finding.rule_id and item.sheet_name == finding.sheet_name), None)
-        affected_cells = list(getattr(match, "affected_cells", None) or []) if match else []
+    affected_cells = resolve_affected_cells(source_path, finding)
+    if target_cell and affected_cells:
+        if target_cell not in affected_cells:
+            return RemediationResult(False, "The selected cell is not an affected cell for this finding.")
+        affected_cells = [target_cell]
 
     target = Path(target_path)
     target.parent.mkdir(parents=True, exist_ok=True)

@@ -23,7 +23,7 @@ from core.models import (
     ReplacementReason, FindingStatus,
 )
 from core.mode_manager import OperatingMode
-from core.remediation_applier import apply_remediation
+from core.remediation_applier import apply_remediation, resolve_affected_cells
 from core.remediation_catalog import remediation_options, approved_symbol_options
 
 st.set_page_config(
@@ -194,7 +194,9 @@ with tab_projects:
                 ):
                     st.write(desc)
                     st.caption(f"{f.sheet_name}: {f.location}")
-                    affected_cells = getattr(f, "affected_cells", None) or []
+                    affected_cells = resolve_affected_cells(
+                        os.path.join(store.repo.root_path, f"reviews/{project.project_id}/workbooks/{revision.stored_filename}"), f
+                    )
                     if affected_cells:
                         st.markdown(
                             ("**Affected cells:** " if lang == "en" else "**Cellules touchées :** ")
@@ -205,6 +207,13 @@ with tab_projects:
                     options = remediation_options(f.rule_id)
                     if options and f.status == FindingStatus.OPEN:
                         st.markdown("##### 🛠 Deterministic resolution options" if lang == "en" else "##### 🛠 Options de résolution déterministes")
+                        selected_cell = None
+                        if affected_cells:
+                            selected_cell = st.selectbox(
+                                "Cell to change" if lang == "en" else "Cellule à modifier",
+                                affected_cells,
+                                key=f"rem-cell-{f.finding_id}",
+                            )
                         option_labels = [o["label_en"] if lang == "en" else o["label_fr"] for o in options]
                         selected_idx = st.selectbox(
                             "Resolution" if lang == "en" else "Résolution",
@@ -234,7 +243,7 @@ with tab_projects:
                                 store.repo.root_path,
                                 f"reviews/{project.project_id}/workbooks/{output_name}",
                             )
-                            result = apply_remediation(source_path, output_path, f, selected["id"], input_value)
+                            result = apply_remediation(source_path, output_path, f, selected["id"], input_value, selected_cell)
                             if result.success:
                                 relative_output = f"reviews/{project.project_id}/workbooks/{output_name}"
                                 with open(output_path, "rb") as generated:
