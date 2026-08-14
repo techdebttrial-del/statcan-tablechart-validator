@@ -24,6 +24,7 @@ from core.models import (
 )
 from core.mode_manager import OperatingMode
 from core.remediation_applier import apply_remediation, resolve_affected_cells
+from core.iteration_lineage import current_workbook, next_iteration
 from core.remediation_catalog import remediation_options, approved_symbol_options
 
 st.set_page_config(
@@ -183,6 +184,17 @@ with tab_projects:
         project = store.load_project(active_id)
         revision = project.latest_revision()
         if revision:
+            workbook_dir = os.path.join(
+                store.repo.root_path, f"reviews/{project.project_id}/workbooks"
+            )
+            active_workbook = current_workbook(
+                workbook_dir, revision.original_filename, revision.stored_filename
+            )
+            st.info(
+                (f"Current workbook base: `{active_workbook.name}`. Each accepted change creates a new immutable iteration and preserves earlier changes."
+                 if lang == "en" else
+                 f"Classeur de base actuel : `{active_workbook.name}`. Chaque correction acceptée crée une nouvelle itération immuable et préserve les corrections précédentes.")
+            )
             st.subheader(f"{t(lang,'findings')} — Revision {revision.revision_number}")
             st.write(f"**{revision.compliance_status.value}**")
 
@@ -195,7 +207,7 @@ with tab_projects:
                     st.write(desc)
                     st.caption(f"{f.sheet_name}: {f.location}")
                     affected_cells = resolve_affected_cells(
-                        os.path.join(store.repo.root_path, f"reviews/{project.project_id}/workbooks/{revision.stored_filename}"), f
+                        str(active_workbook), f
                     )
                     if affected_cells:
                         st.markdown(
@@ -234,15 +246,10 @@ with tab_projects:
                                 approved_symbol_options(), key=f"rem-symbol-{f.finding_id}",
                             )
                         if st.button("Create new workbook iteration" if lang == "en" else "Créer une nouvelle itération du classeur", key=f"rem-save-{f.finding_id}"):
-                            source_path = os.path.join(
-                                store.repo.root_path,
-                                f"reviews/{project.project_id}/workbooks/{revision.stored_filename}",
-                            )
-                            output_name = f"iteration_{revision.revision_number:02d}_{f.finding_id}_{revision.original_filename}"
-                            output_path = os.path.join(
-                                store.repo.root_path,
-                                f"reviews/{project.project_id}/workbooks/{output_name}",
-                            )
+                            source_path = str(active_workbook)
+                            output_path_obj = next_iteration(workbook_dir, revision.original_filename, f.finding_id)
+                            output_name = output_path_obj.name
+                            output_path = str(output_path_obj)
                             result = apply_remediation(source_path, output_path, f, selected["id"], input_value, selected_cell)
                             if result.success:
                                 relative_output = f"reviews/{project.project_id}/workbooks/{output_name}"

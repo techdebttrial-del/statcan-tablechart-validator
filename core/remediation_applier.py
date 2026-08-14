@@ -21,14 +21,20 @@ class RemediationResult:
 
 
 def resolve_affected_cells(source_path: str, finding: Finding) -> list[str]:
-    """Return exact writable cells, refreshing legacy findings when needed."""
-    affected_cells = list(getattr(finding, "affected_cells", None) or [])
-    if affected_cells:
-        return affected_cells
+    """Return locations still affected in the selected source workbook.
+
+    Persisted findings describe the revision on which they were detected, not
+    a later immutable iteration. Re-inspect the selected source first so an
+    already-fixed cell cannot be selected or overwritten again. Fall back to
+    persisted coordinates only when the rule is not observable in the source,
+    preserving compatibility with older stored findings.
+    """
     refreshed = ExcelInspector().inspect_workbook(source_path)
     match = next((item for item in refreshed
                   if item.rule_id == finding.rule_id and item.sheet_name == finding.sheet_name), None)
-    return list(getattr(match, "affected_cells", None) or []) if match else []
+    if match is not None:
+        return list(getattr(match, "affected_cells", None) or [])
+    return list(getattr(finding, "affected_cells", None) or [])
 
 
 def _number_or_text(value: str):
