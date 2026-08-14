@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 
 from core.models import Finding
 from core.remediation_catalog import APPROVED_SYMBOLS
+from core.excel_inspector import ExcelInspector
 
 
 @dataclass
@@ -45,6 +46,21 @@ def apply_remediation(source_path: str, target_path: str, finding: Finding,
     if option_id not in {"enter_value", "replace_with_value", "select_symbol", "remove_fill", "use_indent", "turn_on"}:
         return RemediationResult(False, "Unsupported remediation choice.")
 
+    # Older persisted revisions do not have structured coordinates. Refresh
+    # the deterministic finding from the unchanged source workbook so those
+    # revisions remain repairable after the application is upgraded.
+    affected_cells = list(getattr(finding, "affected_cells", None) or [])
+    if not affected_cells and finding.rule_id in {
+        "T101-NO-FORMULAS", "T101-NO-COLOR-FILL", "T101-NO-EMPTY-CELLS",
+        "T101-INDENT-FEATURE", "T101-FULL-TEXT-OVER-SYMBOLS",
+        "T101-FR-NUMBER-FORMAT", "C101-NO-EMPTY-CELLS",
+        "C101-NO-EXTRA-CALCULATIONS",
+    }:
+        refreshed = ExcelInspector().inspect_workbook(source_path)
+        match = next((item for item in refreshed
+                      if item.rule_id == finding.rule_id and item.sheet_name == finding.sheet_name), None)
+        affected_cells = list(getattr(match, "affected_cells", None) or []) if match else []
+
     target = Path(target_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_path, target_path)
@@ -52,21 +68,21 @@ def apply_remediation(source_path: str, target_path: str, finding: Finding,
     ws = wb[finding.sheet_name] if finding.sheet_name in wb.sheetnames else None
 
     if option_id in {"enter_value", "replace_with_value", "select_symbol"}:
-        if ws is None or not finding.affected_cells:
+        if ws is None or not affected_cells:
             return RemediationResult(False, "This finding has no writable cell locations.")
         replacement = _number_or_text(value or "")
-        for coordinate in finding.affected_cells:
+        for coordinate in affected_cells:
             ws[coordinate] = replacement
     elif option_id == "remove_fill":
         if ws is None:
             return RemediationResult(False, "This finding has no writable worksheet.")
         from openpyxl.styles import PatternFill
-        for coordinate in finding.affected_cells:
+        for coordinate in affected_cells:
             ws[coordinate].fill = PatternFill(fill_type=None)
     elif option_id == "use_indent":
         if ws is None:
             return RemediationResult(False, "This finding has no writable worksheet.")
-        for coordinate in finding.affected_cells:
+        for coordinate in affected_cells:
             cell = ws[coordinate]
             cell.value = str(cell.value).lstrip()
             cell.alignment = cell.alignment.copy(indent=1)
