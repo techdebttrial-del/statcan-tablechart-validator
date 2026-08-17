@@ -39,9 +39,9 @@ python -m pytest tests -q
    reject, or waive — each with a structured reason plus a free-text note in
    the reviewer's language, optionally with a target resolution date for
    pending items.
-4. Free-text notes are stored in their original language and automatically
-   machine-translated to the alternate language, clearly labeled as a machine
-   translation from the source language. A human-verified translation can be
+4. Free-text notes are stored in their original language. The alternate
+   language shows a clearly labelled translation-unavailable marker plus the
+   original text (deterministic — no LLM); a human-verified translation can be
    attached later.
 5. Reviewers can **replace the workbook** in the same project (creating a new
    revision, fully revalidated from scratch — no diffing in the MVP) or start

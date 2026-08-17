@@ -1,5 +1,13 @@
 # Spec: StatCan Tables/Charts Validator v2.0 — Dual-Flavour Offline + LLM-Assisted
 
+> **Amendment (2026-08-17):** Goals G3–G6, G9 (dual-flavour architecture, LLM
+> mode, cloud escalation, LLM fix-suggestion UI) were **obsolete and removed.**
+> Presumption validated: identification (`excel_inspector`) and changes
+> (remediation_catalog + applier) are fully deterministic. The LLM added only
+> redundant suggestions and mode-switching machinery, so it was dropped from
+> the code, UI, dependencies, docs, and tests. See `docs/MODES.md`. The
+> deterministic goals (G1, G2, G4, G7, G8) remain the operating contract.
+
 ## Problem
 
 The current StatCan Tables/Charts Validator (v0.5 MVP) provides deterministic

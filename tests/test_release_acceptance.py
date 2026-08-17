@@ -2,7 +2,6 @@
 from pathlib import Path
 
 from core.excel_inspector import ExcelInspector
-from core.mode_manager import ModeManager
 
 FIXTURES = Path(__file__).parent / "fixtures" / "test_cases"
 
@@ -19,21 +18,15 @@ def test_failure_demo_fixtures_are_not_clean():
         assert inspector.inspect_workbook(str(FIXTURES / name))
 
 
-def test_offline_mode_does_not_probe_gateway():
-    health = ModeManager(use_llm=False, litellm_url="http://127.0.0.1:9").check_health()
-    assert health.mode.value == "offline"
-    assert not health.gateway_ok
-
-
-def test_local_llm_mode_sees_cascade2_gateway():
-    health = ModeManager(
-        use_llm=True,
-        litellm_url="http://192.168.2.170:4000",
-        cascade2_model="r720-cascade2",
-    ).check_health()
-    assert health.gateway_ok
-    assert health.cascade2_loaded
-    assert health.mode.value == "llm_assisted"
+def test_app_has_no_llm_gateway_machinery():
+    # A regression guard against re-introducing an LLM dependency: validation
+    # and remediation are fully deterministic, so no LLM mode/suggestion code
+    # should be present in the application.
+    main_src = (Path(__file__).parents[1] / "app" / "main.py").read_text()
+    services_src = (Path(__file__).parents[1] / "app" / "services.py").read_text()
+    combined = main_src + "\n" + services_src
+    for fragment in ("mode_mgr", "suggest_fixes", "llm_suggestions_enabled", "get_mode_manager"):
+        assert fragment not in combined, f"LLM machinery '{fragment}' should have been removed"
 
 
 def test_rule_packs_have_deterministic_checks():

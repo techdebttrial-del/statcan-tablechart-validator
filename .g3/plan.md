@@ -1,8 +1,13 @@
 # Plan: StatCan Tables/Charts Validator v2.0
 
+> **Amendment (2026-08-17):** Tasks T3 (dual-flavour architecture) and T4
+> (auto-fix suggestion engine) were **removed** when the LLM path was rolled
+> back — the product is deterministic-only. See `docs/MODES.md`. Remaining
+> tasks T1/T2 (rule engines), T5 (fixtures), T6 (tests), T7 (docs) stand.
+
 ## Overview
-Enhance the existing v0.5 validator with complete rule coverage, dual-flavour
-architecture (offline + LLM-assisted), real-world test fixtures, and full test suite.
+Enhance the existing v0.5 validator with complete rule coverage, real-world
+test fixtures, and full test suite — deterministic-only, no LLM.
 
 ## Tasks (in order)
 

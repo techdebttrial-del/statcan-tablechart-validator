@@ -1,34 +1,30 @@
 """
-StatCan Tables/Charts Validator — Streamlit entry point (v2.0)
+StatCan Tables/Charts Validator — Streamlit entry point
 
-Enhanced with dual-flavour architecture: offline + LLM-assisted modes,
-mode indicator, auto-fix suggestion panel, and cloud escalation.
+Deterministic-only: identification and changes need no LLM. Findings come
+from the rule engine; review resolutions come from the deterministic
+remediation catalogue applied to a fresh workbook iteration.
 """
 import os
 import sys
 import tempfile
-from datetime import date
 
 import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.services import (
-    get_project_store, get_report_generator,
-    get_mode_manager, get_fix_suggester,
-)
+from app.services import get_project_store, get_report_generator
 from app.i18n import t
 from core.models import (
     ProjectStatus, ComplianceStatus, DecisionType, DecisionReason,
     ReplacementReason, FindingStatus,
 )
-from core.mode_manager import OperatingMode
 from core.remediation_applier import apply_remediation, resolve_affected_cells
 from core.iteration_lineage import current_workbook, next_iteration
 from core.remediation_catalog import remediation_options, approved_symbol_options
 
 st.set_page_config(
-    page_title="StatCan Tables/Charts Validator v2.0 | Validateur v2.0",
+    page_title="StatCan Tables/Charts Validator | Validateur",
     layout="wide",
 )
 
@@ -37,17 +33,9 @@ if "ui_lang" not in st.session_state:
     st.session_state.ui_lang = "en"
 if "active_project_id" not in st.session_state:
     st.session_state.active_project_id = None
-if "show_suggestions" not in st.session_state:
-    st.session_state.show_suggestions = {}
-if "use_llm" not in st.session_state:
-    st.session_state.use_llm = True
-if "llm_suggestions_enabled" not in st.session_state:
-    st.session_state.llm_suggestions_enabled = False
 
 store = get_project_store()
 reportgen = get_report_generator()
-mode_mgr = get_mode_manager()
-fix_suggester = get_fix_suggester()
 
 # ---- Sidebar --------------------------------------------------------
 with st.sidebar:
@@ -59,50 +47,9 @@ with st.sidebar:
     lang = st.session_state.ui_lang
 
     st.markdown("---")
-
-    # Mode indicator
-    health = mode_mgr.check_health()
-    st.markdown(f"**{health.emoji()} {health.label(lang)}**")
-    st.caption(health.summary(lang))
-
-    # Mode toggle
-    use_llm = st.checkbox(
-        "Enable LLM assistance" if lang == "en" else "Activer l'assistance LLM",
-        value=mode_mgr.use_llm,
-        key="use_llm_toggle",
-    )
-    if use_llm != mode_mgr.use_llm:
-        mode_mgr.set_use_llm(use_llm)
-        st.session_state.use_llm = use_llm
-        st.rerun()
-
-    if health.mode in (OperatingMode.DEGRADED, OperatingMode.OFFLINE) and use_llm:
-        st.warning(
-            "⚠️ LLM gateway unavailable — running in offline mode"
-            if lang == "en"
-            else "⚠️ Passerelle LLM indisponible — mode hors ligne"
-        )
-
-    if health.mode == OperatingMode.CLOUD_ESCALATION:
-        st.info(
-            f"☁️ Cloud escalation: {health.cloud_escalations_used}/{health.max_cloud_escalations} used"
-            if lang == "en"
-            else f"☁️ Escalade infonuagique : {health.cloud_escalations_used}/{health.max_cloud_escalations} utilisée"
-        )
-
-    st.session_state.llm_suggestions_enabled = st.checkbox(
-        "Generate slow LLM fix suggestions" if lang == "en" else "Générer les suggestions LLM lentes",
-        value=st.session_state.llm_suggestions_enabled,
-        help=("Validation is deterministic and immediate. Leave this off to review locations first; "
-              "enable it only when you want suggestions for expanded findings."),
-    )
-
-    st.markdown("---")
-    st.caption("StatCan Tables/Charts Validator v2.0")
+    st.caption("StatCan Tables/Charts Validator — deterministic rules")
 
 # ---- Main UI --------------------------------------------------------
-lang = st.session_state.ui_lang
-st.title(t(lang, "app_title"))
 
 tab_projects, tab_new = st.tabs([t(lang, "nav_projects"), t(lang, "nav_new_project")])
 
@@ -269,66 +216,6 @@ with tab_projects:
                                     )
                             else:
                                 st.warning(result.message)
-
-                    # ---- Fix Suggestions (LLM mode only) ----------------
-                    if st.session_state.llm_suggestions_enabled and mode_mgr.use_llm and health.mode in (
-                        OperatingMode.LLM_ASSISTED, OperatingMode.CLOUD_ESCALATION
-                    ):
-                        suggestions = fix_suggester.suggest_fixes(f)
-                        if suggestions:
-                            st.markdown("##### 💡 Auto-Fix Suggestions")
-                            for i, s in enumerate(suggestions):
-                                conf_pct = int(s.confidence * 100)
-                                emoji = "🟢" if s.confidence >= 0.8 else "🟡" if s.confidence >= 0.5 else "🔴"
-                                st.markdown(
-                                    f"{emoji} **Suggestion {i+1}** (confidence: {conf_pct}%) — "
-                                    f"{s.description if lang == 'en' else s.description_fr}"
-                                )
-                                st.code(
-                                    s.proposed_change if lang == 'en' else s.proposed_change_fr,
-                                    language="text",
-                                )
-                                st.caption(f"Apply to: {s.applies_to} | Source: {s.source_model or 'Cascade 2'}")
-
-                                col_acc, col_mod, col_rej = st.columns(3)
-                                with col_acc:
-                                    if st.button(
-                                        "✅ Accept" if lang == "en" else "✅ Accepter",
-                                        key=f"acc-{f.finding_id}-{i}",
-                                    ):
-                                        workbook_path = os.path.join(
-                                            store.repo.root_path,
-                                            f"reviews/{project.project_id}/workbooks/{revision.stored_filename}",
-                                        )
-                                        result = fix_suggester.apply_suggestion(
-                                            workbook_path,
-                                            s,
-                                        )
-                                        if result.success:
-                                            st.success(result.message if lang == "en" else result.message_fr)
-                                            st.rerun()
-                                        else:
-                                            st.error(result.message if lang == "en" else result.message_fr)
-                                with col_mod:
-                                    if st.button(
-                                        "✏️ Accept Modified" if lang == "en" else "✏️ Accepter modifié",
-                                        key=f"mod-{f.finding_id}-{i}",
-                                    ):
-                                        st.text_area(
-                                            "Modified change" if lang == "en" else "Modification",
-                                            value=s.proposed_change,
-                                            key=f"modtext-{f.finding_id}-{i}",
-                                        )
-                                with col_rej:
-                                    if st.button(
-                                        "❌ Reject" if lang == "en" else "❌ Rejeter",
-                                        key=f"rej-{f.finding_id}-{i}",
-                                    ):
-                                        st.session_state.show_suggestions[f.finding_id] = False
-                                        st.rerun()
-                        else:
-                            if health.mode != OperatingMode.OFFLINE:
-                                st.caption("No suggestions generated for this finding.")
 
                     # ---- Decision form -----------------------------------
                     if f.status == FindingStatus.OPEN:

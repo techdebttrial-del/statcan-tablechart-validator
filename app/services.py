@@ -1,8 +1,9 @@
 """
-Service wiring — v2.0 with dual-flavour architecture.
+Service wiring — deterministic-only architecture.
 
-Wires ModeManager, FixSuggester, and the existing Inspector/Translator/Store
-into singleton constructors cached via st.cache_resource.
+Wires the Inspector/Translator/Store into singleton constructors cached via
+st.cache_resource. No LLM gateways, no mode switching: identification and
+changes are fully deterministic.
 """
 from __future__ import annotations
 
@@ -12,12 +13,9 @@ import streamlit as st
 from core.rule_pack_loader import RulePackLoader
 from core.excel_inspector import ExcelInspector
 from core.translation_manager import TranslationManager, PassthroughTranslator
-from core.llm_translator import LLMTranslator
 from core.repository_client import RepositoryClient
 from core.project_store import ProjectStore
 from core.report_generator import ReportGenerator
-from core.mode_manager import ModeManager
-from core.fix_suggester import FixSuggester
 
 import logging
 
@@ -38,28 +36,12 @@ def get_inspector() -> ExcelInspector:
 
 
 @st.cache_resource
-def get_mode_manager() -> ModeManager:
-    return ModeManager()
-
-
-@st.cache_resource
-def get_fix_suggester() -> FixSuggester:
-    return FixSuggester(mode_manager=get_mode_manager())
-
-
-@st.cache_resource
 def get_translation_manager() -> TranslationManager:
-    mm = get_mode_manager()
-    if mm.use_llm:
-        litellm_url = os.environ.get("LITELLM_BASE_URL", mm.litellm_url)
-        if litellm_url:
-            model = os.environ.get("LITELLM_MODEL", mm.cascade2_model)
-            translator = LLMTranslator(base_url=litellm_url, model=model)
-            logger.info("TranslationManager using LLMTranslator (base_url=%s, model=%s)", litellm_url, model)
-            return TranslationManager(translator=translator)
-
+    # Reviewer notes are kept bilingual (EN/FR) deterministically: the
+    # original text is preserved and the alternate language is clearly
+    # labelled as untranslated, with a human-verified slot available.
     translator = PassthroughTranslator()
-    logger.info("TranslationManager using PassthroughTranslator (no LLM)")
+    logger.info("TranslationManager using PassthroughTranslator (deterministic, no LLM)")
     return TranslationManager(translator=translator)
 
 

@@ -1,69 +1,73 @@
-# StatCan Tables/Charts Validator v2.0 — Dual-Flavour Architecture
+# Validator Design: Deterministic-Only (no LLM)
 
 ## Overview
 
-The validator runs in two distinct modes, controlled by a single flag.
-Both modes produce the **identical set of findings** from the rule engine;
-the LLM only adds value on top (suggestions, translations).
+The validator is **deterministic-only**. Identification of rule violations and
+the changes to fix them require **no LLM and no network**. This is a
+deliberate inversion of the earlier "dual-flavour" design: the LLM-assisted
+mode was removed because it added nothing that the deterministic pipeline
+could not already do.
 
-## Mode Comparison
+## Why the LLM path was removed
 
-| Feature | Offline Mode | LLM-Assisted Mode |
-|---------|-------------|-------------------|
-| Rule checking | ✅ Full | ✅ Full |
-| Bilingual reports | ✅ (Passthrough markers) | ✅ (LLM translated) |
-| Fix suggestions | ❌ | ✅ (Cascade 2 local) |
-| Cloud escalation | ❌ | ✅ (when needed) |
-| Network required | ❌ No | ✅ LiteLLM proxy |
-| Start time | < 1s | ~2s (health check) |
-| Hardware needed | Any | M40 GPU (Cascade 2) |
+- **Identification** — `core/excel_inspector.py` runs every rule as a plain
+  Python predicate over openpyxl-parsed workbook structures (cell values,
+  fills, formulas, merged ranges, chart series, sheet naming). This was
+  already 100% deterministic and LLM-free; a spec guarantee
+  ("offline mode must produce identical findings to LLM-assisted mode")
+  made the LLM redundant by construction.
+- **Changes** — `core/remediation_catalog.py` + `core/remediation_applier.py`
+  define a finite, per-rule set of approved changes (enter value, select
+  symbol, remove fill, use indent, turn on gridlines) applied to a fresh
+  workbook iteration. This was already the primary remediation path; an
+  LLM auto-fix suggester only duplicated it with slower, lower-trust results.
 
-## Mode Selection
+Files removed when the LLM path was deleted:
 
-The mode is selected via:
-1. **Environment variable**: `USE_LLM=true` or `USE_LLM=false` (default: `true`)
-2. **Streamlit toggle**: Sidebar checkbox "Enable LLM assistance"
-3. **Auto-degradation**: If LLM gateway health check fails, drops to offline automatically
+```
+core/mode_manager.py       # offline/LLM/cloud mode switching — moot without an LLM
+core/fix_suggester.py      # LLM auto-fix suggestions — redundant with the remediation catalogue
+core/llm_translator.py     # LLM note translation — PassthroughTranslator covers the bilingual feature
+tests/test_llm_thinking_control.py
+```
 
-## Health Check System
+`litellm` was removed from `requirements.txt` / `pyproject.toml`.
 
-The ModeManager runs a health probe on startup:
-- Checks LiteLLM proxy (`http://192.168.2.170:4000/health`)
-- Verifies Cascade 2 model is loaded (`GET /v1/models`)
-- Returns: `healthy`, `degraded`, or `offline`
+## Operating characteristics
 
-If the gateway is unreachable or Cascade 2 is not loaded, the system:
-1. Shows a yellow warning banner in the UI
-2. Falls back to offline mode for rule checking
-3. Still allows project management and report generation
-
-## Cloud Escalation
-
-When in LLM-Assisted mode, the fix suggester can escalate to cloud models:
-- **Trigger**: Confidence score < 0.5 on the local Cascade 2 suggestion
-- **Cloud model**: `cloud-*-free` aliases (OpenRouter free-tier)
-- **Config**: `CLOUD_ESCALATION_MODEL` env var
-- **User visible**: Banner shows "Escalating to cloud model..."
-- **Cost guard**: Limited to 3 escalations per session (configurable via `MAX_CLOUD_ESCALATIONS`)
+| Characteristic | Value |
+|----------------|-------|
+| Rule checking | Deterministic, all rule packs (Tables 101 / Charts 101) |
+| Fix/resolution options | Deterministic per-rule remediation catalogue |
+| Bilingual reports | `PassthroughTranslator` (original + clearly labelled) plus human-verified slot |
+| Network required | None |
+| Hardware required | Any (no GPU, no gateway) |
+| Start time | < 1s |
 
 ## Translation
 
-| Scenario | EN→FR Translation |
-|----------|-------------------|
-| Offline mode | `[FR translation unavailable]` + original text (clearly marked) |
-| LLM mode | Translated by Cascade 2 via LiteLLM |
-| LLM mode + fallback | Cascade 2 failure → `[LLM translation failed]` + Passthrough marker |
+Reviewer notes are stored in their original language. The alternate language
+field shows a clearly labelled `[FR translation unavailable]` (or
+`[EN translation unavailable]`) marker plus the original text, so it is never
+mistaken for a real translation. A human-verified translation can be attached
+later via `TranslationManager.attach_human_verified_translation`.
 
-## File Structure
+## File structure (current)
 
 ```
 core/
-├── mode_manager.py       # ModeManager — health checks, mode state, escalation
-├── fix_suggester.py      # FixSuggester — per-finding LLM suggestions
-├── excel_inspector.py    # (unchanged — rule engine is mode-independent)
-└── llm_translator.py     # Existing LLM-backed Translator (via LiteLLM)
-
+├── excel_inspector.py       # Deterministic rule engine (no LLM)
+├── translation_manager.py   # Translator protocol + PassthroughTranslator
+├── remediation_catalog.py   # Finite per-rule resolution choices
+├── remediation_applier.py   # Apply a choice to a fresh workbook iteration
+├── ... (project_store, report_generator, repository_client, etc.)
 app/
-├── main.py               # Updated with mode toggle + suggestion panel
-└── services.py           # Updated with ModeManager + FixSuggester wiring
+├── main.py                  # Streamlit UI (no LLM controls)
+└── services.py              # Deterministic service wiring only
 ```
+
+## Re-introducing an LLM later
+
+The `Translator` protocol in `core/translation_manager.py` remains a clean
+extension point: swap `PassthroughTranslator` for an LLM-backed translator
+without changing any calling code. No other module needs LLM.

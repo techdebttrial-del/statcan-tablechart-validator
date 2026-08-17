@@ -50,9 +50,9 @@ stage (stage 5) and before peer review (stage 7).
    approach preserves this validator's existing audit trail.
 5. Route `TranslationManager.Translator` to the broader Accelerator's
    `core/llm_client.py` LiteLLM gateway instead of `PassthroughTranslator`,
-   to produce genuine machine translations rather than the MVP's
-   placeholder passthrough. No other code changes are required due to the
-   `Translator` protocol.
+   to produce genuine machine translations rather than the current
+   translation-unavailable passthrough. No other code changes are required due
+   to the `Translator` protocol.
 6. Merge `ReportGenerator` output into the broader Accelerator's stage 8
    `format_publication` bilingual HTML pipeline, or keep it as a standalone
    audit artifact attached to the publication package (see broader project's
@@ -60,11 +60,12 @@ stage (stage 5) and before peer review (stage 7).
    amendments + drafts as a single ZIP" — this validator's report fits
    naturally into that ZIP).
 
-## What was deliberately NOT done in the MVP
+## What was deliberately NOT done
 
-- No LLM calls anywhere (the broader Accelerator uses LLMs for drafting/
-  translation/review-comment handling; this validator's MVP scope is
-  Table 101/Chart 101 rule compliance only, so it stays fully deterministic).
+- No LLM calls anywhere. Identification and changes are fully deterministic;
+  the `TranslationManager.Translator` protocol is the only extension point
+  (the broader Accelerator may swap in its LiteLLM gateway later, but this
+  validator stays deterministic).
 - No live StatCan WDS API integration (out of scope; this tool only inspects
   the uploaded workbook's own structure/content, not published table data).
 - No diffing between workbook revisions (each revision is fully revalidated

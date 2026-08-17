@@ -1,4 +1,10 @@
-# Eval: StatCan Tables/Charts Validator v2.0
+# Eval: StatCan Tables/Charts Validator
+
+> **Amendment (2026-08-17):** The original v2.0 spec called for a dual-flavour
+> (offline + LLM-assisted) architecture. The LLM path was subsequently
+> removed — identification and changes are fully deterministic. See
+> `docs/MODES.md`. Acceptance tests AT6 and AT9 below were reworked to the
+> deterministic remediation workflow.
 
 ## Acceptance Tests
 
@@ -14,9 +20,7 @@ has at least one pass and one fail test.
 
 ### AT3 — Full test suite passes
 **Command:** `python -m pytest tests/ -v --tb=short`
-**Expected:** 80+ tests passed, 0 failed, 0 errors. The current release gate
-has 84 tests; the original 100-test aspiration is retained as follow-up
-coverage, not a reason to misrepresent the demo gate.
+**Expected:** 100+ tests passed, 0 failed, 0 errors (currently 102).
 
 ### AT4 — Real-world fixtures produce expected findings
 **Command:** `python -c "
@@ -47,15 +51,10 @@ assert tm.translator.engine_name == 'passthrough-no-llm-configured'
 "`
 **Expected:** Findings produced, translator is PassthroughTranslator
 
-### AT6 — LLM-assisted mode produces suggestions
-**Command:** `LITELLM_BASE_URL=http://192.168.2.170:4000 LITELLM_MODEL=r720-cascade2 python -c "
-import sys; sys.path.insert(0, '.')
-from core.fix_suggester import FixSuggester
-fs = FixSuggester()
-suggestions = fs.suggest_fixes(findings=[mock_finding])
-print(f'{len(suggestions)} suggestions generated')
-"`
-**Expected:** Suggestions returned for real findings
+### AT6 — Deterministic remediation produces a new workbook iteration
+**Command:** `python -m pytest tests/test_remediation_apply.py tests/test_deterministic_remediation.py tests/test_iteration_verification.py -v`
+**Expected:** Tests pass. Applying an approved remediation choice to a
+violating finding produces a fresh immutable workbook iteration and commits it.
 
 ### AT7 — Bilingual report generation
 **Command:** `python -m pytest tests/test_report_generator.py -v`
@@ -66,10 +65,9 @@ content and language markers.
 **Command:** `timeout 10 streamlit run app/main.py --server.port 8505 2>&1 | grep -i "you can now view"`
 **Expected:** Streamlit banner appears, app accessible on port 8505
 
-### AT9 — Mode switching without restart
-**Command:** Check that `st.session_state.use_llm` toggle in sidebar
-changes finding suggestion panel visibility without app restart
-**Expected:** Verified via functional test
+### AT9 — No LLM machinery in the application
+**Command:** `grep -rnE "mode_mgr|suggest_fixes|get_mode_manager|llm_suggestions_enabled" app/ || echo clean`
+**Expected:** No matches — the LLM mode/suggestion machinery has been removed.
 
 ### AT10 — Git persistence round-trip
 **Command:** `python -m pytest tests/test_project_store.py tests/test_project_store_comprehensive.py -v --tb=short`

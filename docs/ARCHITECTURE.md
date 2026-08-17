@@ -64,16 +64,18 @@ config/symbols/*.yaml      Standard Table Symbols registry (unmodifiable
 
 ## Determinism guarantee
 
-No rule evaluation depends on an LLM call. All checks in
-`ExcelInspector` are plain Python predicates over openpyxl-parsed workbook
-structures (cell values, fills, formulas, merged ranges, chart series counts,
-sheet naming patterns). This mirrors the broader Accelerator's core design
-principle: *"Deterministic-first — LLM only for targeted disambiguation."*
-The `TranslationManager.Translator` protocol is the only extension point
-where an LLM gateway could later be wired in (e.g., to replace
-`PassthroughTranslator` with a call into the broader Accelerator's
-`core/llm_client.py` LiteLLM wrapper) — swapping it does not change any
-calling code.
+No rule evaluation depends on an LLM call — this is a deliberate, hard
+property of the tool. All checks in `ExcelInspector` are plain Python
+predicates over openpyxl-parsed workbook structures (cell values, fills,
+formulas, merged ranges, chart series counts, sheet naming patterns), and all
+changes go through the deterministic remediation catalogue
+(`core/remediation_catalog.py` + `remediation_applier.py`). This mirrors the
+broader Accelerator's core design principle: *"Deterministic-first — LLM only
+for targeted disambiguation."* The `TranslationManager.Translator` protocol is
+the only extension point where an LLM gateway could later be wired in (e.g., to
+replace `PassthroughTranslator` with a call into the broader Accelerator's
+`core/llm_client.py` LiteLLM wrapper) — swapping it does not change any calling
+code and nothing else needs an LLM.
 
 ## Persistence contract
 

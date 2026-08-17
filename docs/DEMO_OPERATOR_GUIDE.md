@@ -2,7 +2,9 @@
 
 **Audience:** Clerk, demo operator, or client-support person running the application without changing code.
 
-**Purpose:** Demonstrate that the validator can identify compliant and non-compliant Statistics Canada table/chart workbooks, operate without an LLM, and optionally use the local Cascade 2 LLM for suggestions.
+**Purpose:** Demonstrate that the validator can identify compliant and
+non-compliant Statistics Canada table/chart workbooks and resolve findings
+entirely deterministically — no LLM, no gateway, no network required.
 
 ## 1. What the demo demonstrates
 
@@ -17,9 +19,12 @@ The validator produces findings with:
 - severity;
 - worksheet and location;
 - English and French title/description;
+- deterministic per-rule resolution options (change cell value, select symbol, remove fill, etc.);
 - reviewer decision and audit trail support.
 
-**Important:** The LLM never changes the deterministic findings. It can add translations and per-finding fix suggestions only.
+**Important:** The validator is fully deterministic. There is no LLM, no
+LLM-assisted mode, and no gateway toggle. Findings and resolutions are
+identical on every machine in every environment.
 
 ## 2. Before the client arrives
 
@@ -49,7 +54,7 @@ python -m pytest -q
 Expected result:
 
 ```text
-84 passed
+102 passed
 ```
 
 If this does not pass, do not present the application as release-ready. Contact the technical owner.
@@ -68,14 +73,12 @@ http://localhost:8502
 
 For a client on the same network, use the Network URL printed by Streamlit.
 
-### 2.4 Choose the operating mode
+### 2.4 Startup
 
-The sidebar contains **Enable LLM assistance**.
-
-- **Offline demonstration:** uncheck it. This requires no LLM gateway and is the safest first demo.
-- **LLM-assisted demonstration:** check it. The sidebar should show `LLM-Assisted` and `r720-cascade2` when the local gateway is available.
-
-If the local gateway is unavailable, the application should fall back to offline behavior and display a warning. The deterministic validation still works.
+The application has no LLM mode and no gateway toggle. Launch it, open
+`http://localhost:8502` (or the Network URL printed by Streamlit for a client
+on the same network), and it is ready to demo. There is nothing to enable,
+provide, or configure.
 
 ## 3. Create a demonstration project
 
@@ -145,18 +148,18 @@ For these files, the exact finding count is not the primary demonstration assert
 
 ## 6. Recommended client demonstration sequence
 
-### Demonstration A — Clean pass, offline
+### Demonstration A — Clean pass
 
-1. Disable **Enable LLM assistance**.
-2. Create/open a project.
-3. Upload `t101_perfect_en.xlsx`.
-4. Select English and validate.
-5. Show `COMPLIANT` and zero findings.
-6. Upload `t101_fail_all.xlsx` as a replacement revision.
-7. Show that the same deterministic engine identifies 11 findings.
-8. Expand one finding and show its severity, rule ID, sheet, location, and bilingual text.
+1. Create/open a project.
+2. Upload `t101_perfect_en.xlsx`.
+3. Select English and validate.
+4. Show `COMPLIANT` and zero findings.
+5. Upload `t101_fail_all.xlsx` as a replacement revision.
+6. Show that the same deterministic engine identifies 11 findings.
+7. Expand one finding and show its severity, rule ID, sheet, location, and bilingual text.
 
-**Expected message:** Offline mode is fully useful; it does not require an LLM to perform the compliance checks.
+**Expected message:** Everything the validator does is deterministic and
+requires no LLM or network.
 
 ### Demonstration B — Charts
 
@@ -165,25 +168,26 @@ For these files, the exact finding count is not the primary demonstration assert
 3. Replace it with `c101_fail_all.xlsx`.
 4. Show five findings, especially the series-count, size, source, and symbol checks.
 
-### Demonstration C — Local LLM assistance
+### Demonstration C — Resolve a finding deterministically
 
-1. Enable **Enable LLM assistance**.
-2. Confirm the sidebar shows `LLM-Assisted` and `r720-cascade2`.
-3. Validate `t101_fail_all.xlsx`.
-4. Expand a finding.
-5. Show the suggestion panel if Cascade 2 returns a suggestion.
-6. Explain that suggestions are per-finding and require explicit reviewer action.
-7. Reject a suggestion to demonstrate that no workbook change is made.
-8. If a suggestion is accepted, revalidate and show the resulting revision/history.
-
-If no suggestion is returned within the configured timeout, continue the demo using the deterministic findings. This is not a validation failure: LLM suggestions are an optional enhancement.
+1. Validate `t101_fail_all.xlsx`.
+2. Expand a finding (e.g. `T101-NO-EMPTY-CELLS`).
+3. Pick a resolution from the **Deterministic resolution options** — for
+   example choose an approved symbol for the empty cell.
+4. Select **Create new workbook iteration**.
+5. Show that a fresh immutable iteration was created, committed to git, and is
+   downloadable.
+6. Explain that the change is deterministic and explicit — no AI "guess", and
+   the reviewer always approves the actionable change.
 
 ### Demonstration D — Bilingual workflow
 
 1. Select French as the UI language, or upload `t101_perfect_fr.xlsx` with language `fr`.
 2. Show the French titles and descriptions.
 3. Download both the English and French reports.
-4. Explain that offline mode uses clearly marked passthrough translation, while LLM mode can provide machine translation through Cascade 2.
+4. Explain that the alternate-language text is clearly marked as
+   translation-unavailable (a deterministic passthrough), with a spot for a
+   human-verified translation.
 
 ## 7. What counts as a successful demo
 
@@ -194,10 +198,8 @@ The demo is successful when the operator can show all of the following:
 - a compliant chart returns zero findings;
 - a deliberately failing table returns 11 findings;
 - a deliberately failing chart returns five findings;
-- offline mode works with the LLM disabled;
-- local LLM mode identifies the Cascade 2 gateway when it is available;
-- findings remain the same when switching between offline and LLM-assisted modes;
 - findings include bilingual text and locations;
+- a reviewer can resolve a finding through the deterministic resolution options and download the new iteration;
 - an operator can create a project, upload a revision, and download reports;
 - a reviewer can record a decision with a reason and note.
 
@@ -212,18 +214,6 @@ cd /home/agent/statcan-tablechart-validator
 source .venv/bin/activate
 streamlit run app/main.py --server.port 8502
 ```
-
-### The sidebar shows offline while LLM assistance is enabled
-
-This means the local gateway is unavailable or the model is not listed. Continue with the offline demo. The rule engine does not depend on the gateway.
-
-The technical check is:
-
-```bash
-curl http://192.168.2.170:4000/v1/models
-```
-
-The response should include `r720-cascade2`.
 
 ### A passing fixture shows findings
 
@@ -268,4 +258,4 @@ source .venv/bin/activate
 python -m pytest -q
 ```
 
-Expected result: **84 passed**.
+Expected result: **102 passed**.

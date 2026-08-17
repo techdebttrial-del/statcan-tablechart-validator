@@ -16,11 +16,13 @@ def test_table_findings_include_actionable_cell_or_header_locations():
     assert "footer" in by_rule["T101-SOURCE-PRESENT"]
 
 
-def test_llm_suggestions_are_not_called_during_default_finding_render():
+def test_deterministic_remediation_is_substituted_for_llm_suggestions():
+    # The LLM suggestion path was removed outright — findings are exclusively
+    # resolved through deterministic remediation options in the UI.
     source = (Path(__file__).parents[1] / "app" / "main.py").read_text()
-    guarded = "if st.session_state.llm_suggestions_enabled and mode_mgr.use_llm"
-    assert guarded in source
-    assert source.index(guarded) < source.index("fix_suggester.suggest_fixes(f)")
+    assert "remediation_options(f.rule_id)" in source
+    assert "suggest_fixes" not in source
+    assert "mode_mgr" not in source
 
 
 def test_chart_findings_identify_chart_anchor_and_data_context():
