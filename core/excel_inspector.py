@@ -138,21 +138,32 @@ class ExcelInspector:
         max_row = ws.max_row or 0
         max_col = ws.max_column or 0
 
+        # Table region bounds gate the per-cell content-violation flags so a
+        # stray cell in a far column (outside the contiguous table block) is
+        # not treated as part of the table. Footer/source/symbol detection
+        # below still scans the whole sheet.
+        region = self._table_region_bounds(ws)
+        region_data_end = region[0] if region else max_row
+        region_right_edge = region[1] if region else max_col
+
         for row in ws.iter_rows(min_row=1, max_row=max_row, max_col=max_col):
             row_text_all = []
             for cell in row:
                 total_cells += 1
                 if cell.value is None:
                     continue
+                in_region = cell.row <= region_data_end and cell.column <= region_right_edge
                 if isinstance(cell.value, str):
                     if cell.value.startswith("="):
-                        has_formulas = True
-                        formula_cells += 1
+                        if in_region:
+                            has_formulas = True
+                            formula_cells += 1
 
                     # Check for leading spaces (indent with spaces)
                     stripped = cell.value.lstrip()
                     if stripped and cell.value != stripped and len(cell.value) - len(stripped) >= 2:
-                        has_leading_spaces_indent = True
+                        if in_region:
+                            has_leading_spaces_indent = True
 
                     row_text_all.append(cell.value)
 
@@ -164,7 +175,7 @@ class ExcelInspector:
                             symbols_found.append(tok)
 
                     # French decimal comma detection
-                    if re.match(r'^-?\d+,\d+$', cell.value.strip()):
+                    if in_region and re.match(r'^-?\d+,\d+$', cell.value.strip()):
                         french_decimal_found = True
 
                     # Superscript check: look for superscript markers like ^ or HTML tags
@@ -177,11 +188,11 @@ class ExcelInspector:
                     has_superscript_text = True
 
                 # Abbreviation/symbol heuristic check
-                if isinstance(cell.value, str) and any(token in cell.value for token in ('%', '$', '&')):
+                if in_region and isinstance(cell.value, str) and any(token in cell.value for token in ('%', '$', '&')):
                     has_abbreviation_or_symbol = True
 
                 # Color fill detection
-                if cell.fill and cell.fill.fgColor:
+                if in_region and cell.fill and cell.fill.fgColor:
                     try:
                         rgb = str(cell.fill.fgColor.rgb)
                         if rgb not in (None, "00000000", "0") and rgb.upper() not in ("00000000", "FFFFFFFF"):
@@ -204,11 +215,17 @@ class ExcelInspector:
                     unit_of_measure_row_present = True
                     break
 
-        # Merged cells detection
+        # Merged cells detection (bounded to the table region so a stray merge
+        # far outside the table does not trigger row/col spanning findings)
         merged_row_spans = 0
         merged_col_spans = 0
         has_merged_cells = False
+        region_merge = self._table_region_bounds(ws)
+        merge_data_end = region_merge[0] if region_merge else max_row
+        merge_right_edge = region_merge[1] if region_merge else max_col
         for mc in ws.merged_cells.ranges:
+            if mc.min_row > merge_data_end or mc.min_col > merge_right_edge:
+                continue
             has_merged_cells = True
             if mc.min_row != mc.max_row:
                 merged_row_spans += 1
@@ -331,21 +348,91 @@ class ExcelInspector:
             has_french_decimal_comma=french_decimal_found,
         )
 
-    def _count_data_cells(self, ws: Worksheet) -> tuple:
-        """Returns (empty_count, total_data_count) for data region."""
-        empty_count = 0
-        total_count = 0
+    def _table_region_bounds(self, ws: Worksheet) -> Optional[tuple]:
+        """Return (data_end_row, right_edge_col) for the contiguous table region.
+
+        Used by per-cell content rules (formulas, fill, indent, symbols,
+        FR-number-format). Bounded by:
+          * bottom — row just above the first source/note footer row (or one
+            above the sheet max when no footer), and
+          * right  — last column in the *contiguous* populated block starting
+            at column 1. The scan stops at the first fully-empty column, so
+            stray content in a far-away column (a gap separates it from the
+            table) is OUTSIDE the region and produces no findings.
+
+        Returns None when there is no meaningful table region.
+        """
+        max_row = ws.max_row or 0
+        max_col = ws.max_column or 0
+        if max_row < 2 or max_col < 1:
+            return None
+
+        data_end = max_row - 1
+        for row_idx in range(2, max_row + 1):
+            values = [str(c.value or "").lower() for c in ws[row_idx]]
+            if any(re.search(r"\b(source|note)\b", value) for value in values):
+                data_end = row_idx - 1
+                break
+
+        right_edge = 0
+        for col in range(1, max_col + 1):
+            populated = any(
+                ws.cell(row=r, column=col).value is not None
+                for r in range(1, data_end + 1)
+            )
+            if not populated:
+                break
+            right_edge = col
+
+        if right_edge < 1 or data_end < 1:
+            return None
+        return data_end, right_edge
+
+    def _data_region_bounds(self, ws: Worksheet) -> Optional[tuple]:
+        """Return (data_end_row, right_edge_col) for the contiguous DATA region.
+
+        Like _table_region_bounds but requires a data box (>= 3 rows and >= 2
+        columns) and scans the contiguous populated block starting at column
+        2 — the row-stub column (A) and header row are not data cells, so they
+        do not count toward the empty-data-cell rule. Used by the
+        empty-data-cell rule only.
+        """
         max_row = ws.max_row or 0
         max_col = ws.max_column or 0
         if max_row < 3 or max_col < 2:
-            return 0, 0
+            return None
+
         data_end = max_row - 1
         for row_idx in range(2, max_row + 1):
-            row_values = [str(c.value or "").lower() for c in ws[row_idx]]
-            if any(re.search(r"\b(source|note)\b", value) for value in row_values):
+            values = [str(c.value or "").lower() for c in ws[row_idx]]
+            if any(re.search(r"\b(source|note)\b", value) for value in values):
                 data_end = row_idx - 1
                 break
-        for row in ws.iter_rows(min_row=2, max_row=max(1, data_end), min_col=2, max_col=max_col):
+
+        right_edge = 0
+        for col in range(2, max_col + 1):
+            populated = any(
+                ws.cell(row=r, column=col).value is not None
+                for r in range(1, data_end + 1)
+            )
+            if not populated:
+                break
+            right_edge = col
+
+        if right_edge < 2 or data_end < 1:
+            return None
+        return data_end, right_edge
+
+
+    def _count_data_cells(self, ws: Worksheet) -> tuple:
+        """Returns (empty_count, total_data_count) for the data region."""
+        empty_count = 0
+        total_count = 0
+        bounds = self._data_region_bounds(ws)
+        if bounds is None:
+            return 0, 0
+        data_end, right_edge = bounds
+        for row in ws.iter_rows(min_row=2, max_row=data_end, min_col=2, max_col=right_edge):
             for cell in row:
                 total_count += 1
                 if cell.value is None:
@@ -582,7 +669,19 @@ class ExcelInspector:
             return False
 
     def _matching_cells(self, ws: Worksheet, predicate) -> List[str]:
-        return [cell.coordinate for row in ws.iter_rows() for cell in row if predicate(cell)]
+        """Return coordinates of cells within the table region matching predicate.
+
+        Bounded to the contiguous table region so stray cells in far columns
+        are not reported as finding locations. Falls back to the whole sheet
+        when no region is detected.
+        """
+        region = self._table_region_bounds(ws)
+        if region is None:
+            return [cell.coordinate for row in ws.iter_rows() for cell in row if predicate(cell)]
+        data_end, right_edge = region
+        return [cell.coordinate
+                for row in ws.iter_rows(min_row=1, max_row=data_end, min_col=1, max_col=right_edge)
+                for cell in row if predicate(cell)]
 
     def _format_cell_location(self, refs: List[str], fallback: str) -> str:
         if not refs:
@@ -591,13 +690,11 @@ class ExcelInspector:
         return f"{', '.join(refs[:8])}{'…' if len(refs) > 8 else ''}{suffix}"
 
     def _empty_data_cells(self, ws: Worksheet) -> List[str]:
-        data_end = (ws.max_row or 0) - 1
-        for row_idx in range(2, (ws.max_row or 0) + 1):
-            values = [str(c.value or "").lower() for c in ws[row_idx]]
-            if any(re.search(r"\b(source|note)\b", value) for value in values):
-                data_end = row_idx - 1
-                break
-        return [cell.coordinate for row in ws.iter_rows(min_row=2, max_row=max(1, data_end), min_col=2, max_col=ws.max_column or 2)
+        bounds = self._data_region_bounds(ws)
+        if bounds is None:
+            return []
+        data_end, right_edge = bounds
+        return [cell.coordinate for row in ws.iter_rows(min_row=2, max_row=data_end, min_col=2, max_col=right_edge)
                 for cell in row if cell.value is None]
 
     def _chart_location(self, chart: ChartBase) -> str:

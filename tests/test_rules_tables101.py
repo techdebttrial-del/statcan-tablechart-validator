@@ -11,7 +11,7 @@ import tempfile
 
 import pytest
 import openpyxl
-from openpyxl.styles import PatternFill
+from openpyxl.styles import PatternFill, Font
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -210,6 +210,96 @@ class TestT101NoColorFill:
         finally:
             os.unlink(path)
 
+    def test_pass_when_fill_only_outside_table_region(self):
+        # Regression: a fill applied to a stray cell in a far column (a gap
+        # of empty columns separates it from the table) is OUTSIDE the table
+        # region and must not trigger T101-NO-COLOR-FILL.
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val1"
+        ws["C1"] = "Val2"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        ws["C2"] = 200
+        ws["A3"] = "Source: X"
+        ws["Z1"] = "stray"
+        ws["Z1"].fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "T101-NO-COLOR-FILL" not in ids
+        finally:
+            os.unlink(path)
+
+    def test_pass_when_formula_only_outside_table_region(self):
+        # Regression: a formula in a stray far column must not trigger
+        # T101-NO-FORMULAS.
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val1"
+        ws["C1"] = "Val2"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        ws["C2"] = 200
+        ws["A3"] = "Source: X"
+        ws["Z1"] = "=SUM(1,2)"
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "T101-NO-FORMULAS" not in ids
+        finally:
+            os.unlink(path)
+
+    def test_pass_when_indent_only_outside_table_region(self):
+        # Regression: leading-space indent in a stray far column must not
+        # trigger T101-INDENT-FEATURE.
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val1"
+        ws["C1"] = "Val2"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        ws["C2"] = 200
+        ws["A3"] = "Source: X"
+        ws["Z1"] = "  stray indented"
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "T101-INDENT-FEATURE" not in ids
+        finally:
+            os.unlink(path)
+
+    def test_pass_when_symbol_only_outside_table_region(self):
+        # Regression: a %/$/& symbol in a stray far column must not trigger
+        # T101-FULL-TEXT-OVER-SYMBOLS.
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val1"
+        ws["C1"] = "Val2"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        ws["C2"] = 200
+        ws["A3"] = "Source: X"
+        ws["Z1"] = "100%"
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "T101-FULL-TEXT-OVER-SYMBOLS" not in ids
+        finally:
+            os.unlink(path)
+
 
 # ---------------------------------------------------------------------------
 # T101-NO-EMPTY-CELLS
@@ -255,6 +345,79 @@ class TestT101NoEmptyCells:
             findings = _make_inspector().inspect_workbook(path)
             ids = _rule_ids(findings)
             assert "T101-NO-EMPTY-CELLS" in ids
+        finally:
+            os.unlink(path)
+
+    def test_pass_when_stray_content_far_right_of_table(self):
+        # Regression: a stray cell/header in a far column (outside the actual
+        # data region) must NOT turn every empty cell in the box between the
+        # table and that stray column into a finding. Data region is bounded
+        # by the contiguous populated block, not the sheet-wide max_column.
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val1"
+        ws["C1"] = "Val2"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        ws["C2"] = 200
+        ws["A3"] = "Row2"
+        ws["B3"] = 150
+        ws["C3"] = 250
+        ws["A4"] = "Source: X"
+        ws["Z1"] = "stray header far outside table"   # inflates max_column
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "T101-NO-EMPTY-CELLS" not in ids
+        finally:
+            os.unlink(path)
+
+    def test_pass_when_stray_value_in_data_row_but_far_column(self):
+        # Stray value in a data-row column far right of the table (a gap of
+        # empty columns exists between the table and the stray) must be
+        # treated as outside the data region, not as the table's right edge.
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val1"
+        ws["C1"] = "Val2"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        ws["C2"] = 200
+        ws["A3"] = "Source: X"
+        ws["F2"] = 999   # far value with empty D,E gap before it
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "T101-NO-EMPTY-CELLS" not in ids
+        finally:
+            os.unlink(path)
+
+    def test_still_flags_empty_cell_within_table_after_stray_column(self):
+        # Even when stray content exists far right, a genuinely empty data
+        # cell INSIDE the table's contiguous block must still be flagged.
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val1"
+        ws["C1"] = "Val2"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        # C2 empty — inside table, must be caught
+        ws["A3"] = "Source: X"
+        ws["Z1"] = "stray"
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            empt = [f for f in findings if f.rule_id == "T101-NO-EMPTY-CELLS"]
+            assert len(empt) == 1
+            assert "C2" in empt[0].location
         finally:
             os.unlink(path)
 
@@ -360,6 +523,32 @@ class TestT101AvoidRowSpanning:
         finally:
             os.unlink(path)
 
+    def test_pass_when_merge_only_outside_table_region(self):
+        # Regression: a vertical merge in a far column (outside the contiguous
+        # table block) is not part of the table and must not trigger
+        # T101-AVOID-ROW-SPANNING.
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val1"
+        ws["C1"] = "Val2"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        ws["C2"] = 200
+        ws["A3"] = "Row2"
+        ws["B3"] = 150
+        ws["C3"] = 250
+        ws["A4"] = "Source: X"
+        ws.merge_cells("Z1:Z2")  # vertical merge far from the table
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "T101-AVOID-ROW-SPANNING" not in ids
+        finally:
+            os.unlink(path)
+
 
 # ---------------------------------------------------------------------------
 # T101-STANDARD-SYMBOLS
@@ -400,6 +589,52 @@ class TestT101StandardSymbols:
         assert finding.rule_id == "T101-STANDARD-SYMBOLS"
         assert finding.severity.value == "error"
         assert finding.title_en == "Use standard table symbols with unmodified definitions"
+
+
+# ---------------------------------------------------------------------------
+# T101-SYMBOL-SUPERSCRIPT-COLUMN
+# ---------------------------------------------------------------------------
+
+class TestT101SymbolSuperscriptColumn:
+    def test_pass_when_symbol_is_superscript(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Category"
+        ws["B1"] = "Value"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        ws["C2"] = "x"
+        ws["C2"].font = Font(vertAlign="superscript")
+        ws["A3"] = "Source: X"
+        ws["A4"] = "x = suppressed"
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "T101-SYMBOL-SUPERSCRIPT-COLUMN" not in ids
+        finally:
+            os.unlink(path)
+
+    def test_fail_when_symbol_present_but_not_superscript(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "tbl1"
+        ws["A1"] = "Category"
+        ws["B1"] = "Value"
+        ws["A2"] = "Row1"
+        ws["B2"] = 100
+        ws["C2"] = "x"
+        ws["A3"] = "Source: X"
+        ws["A4"] = "x = suppressed"
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "T101-SYMBOL-SUPERSCRIPT-COLUMN" in ids
+        finally:
+            os.unlink(path)
+
 
 
 # ---------------------------------------------------------------------------

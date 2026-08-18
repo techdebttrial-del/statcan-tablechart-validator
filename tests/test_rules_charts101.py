@@ -275,3 +275,109 @@ class TestC101UniqueNumbering:
         )
         assert len(findings) == 1
         assert findings[0].rule_id == "C101-UNIQUE-NUMBERING"
+
+
+# ---------------------------------------------------------------------------
+# C101-ONE-CHART-DATA-PER-SHEET
+# ---------------------------------------------------------------------------
+
+class TestC101OneChartPerSheet:
+    def test_pass_when_single_chart(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "chart1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val"
+        ws["A2"] = "A"
+        ws["B2"] = 10
+        ws["A3"] = "Source: X"
+        chart = BarChart()
+        chart.add_data(Reference(ws, min_col=2, min_row=1, max_row=2), titles_from_data=True)
+        ws.add_chart(chart, "D1")
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "C101-ONE-CHART-DATA-PER-SHEET" not in ids
+        finally:
+            os.unlink(path)
+
+    def test_fail_when_two_charts_on_one_sheet(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "chart1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val"
+        ws["A2"] = "A"
+        ws["B2"] = 10
+        ws["A3"] = "Source: X"
+        d = Reference(ws, min_col=2, min_row=1, max_row=2)
+        c1 = BarChart()
+        c1.add_data(d, titles_from_data=True)
+        ws.add_chart(c1, "D1")
+        c2 = BarChart()
+        c2.add_data(d, titles_from_data=True)
+        ws.add_chart(c2, "H1")
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "C101-ONE-CHART-DATA-PER-SHEET" in ids
+        finally:
+            os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# C101-GRIDLINES-NO-DATALABELS
+# ---------------------------------------------------------------------------
+
+class TestC101GridlinesNoDataLabels:
+    def test_fail_when_gridlines_and_data_labels_both_present(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "chart1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val"
+        ws["A2"] = "A"
+        ws["B2"] = 10
+        ws["A3"] = "Source: X"
+        from openpyxl.chart.label import DataLabelList
+        from openpyxl.chart.axis import ChartLines
+        chart = BarChart()
+        chart.add_data(Reference(ws, min_col=2, min_row=1, max_row=2), titles_from_data=True)
+        chart.dataLabels = DataLabelList()
+        chart.x_axis.majorGridlines = ChartLines()
+        ws.add_chart(chart, "D1")
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "C101-GRIDLINES-NO-DATALABELS" in ids
+        finally:
+            os.unlink(path)
+
+    def test_pass_when_data_labels_without_gridlines(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "chart1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val"
+        ws["A2"] = "A"
+        ws["B2"] = 10
+        ws["A3"] = "Source: X"
+        from openpyxl.chart.label import DataLabelList
+        chart = BarChart()
+        chart.add_data(Reference(ws, min_col=2, min_row=1, max_row=2), titles_from_data=True)
+        chart.dataLabels = DataLabelList()
+        # openpyxl BarChart defaults y-axis gridlines ON; clear them so this
+        # chart has data labels but no gridlines (the rule's pass condition).
+        chart.y_axis.majorGridlines = None
+        ws.add_chart(chart, "D1")
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "C101-GRIDLINES-NO-DATALABELS" not in ids
+        finally:
+            os.unlink(path)
+
