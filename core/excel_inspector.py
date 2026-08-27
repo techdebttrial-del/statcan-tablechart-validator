@@ -167,12 +167,15 @@ class ExcelInspector:
 
                     row_text_all.append(cell.value)
 
-                    # Exact match for standard symbols
-                    for tok in STANDARD_SYMBOL_TOKENS:
-                        # Use word-boundary match to avoid false positives
-                        pattern = r'\b' + re.escape(tok) + r'\b'
-                        if re.search(pattern, cell.value):
-                            symbols_found.append(tok)
+                    # Exact match for standard symbols — only in data region,
+                    # not in footer/note/source rows where symbol letters appear
+                    # as part of explanatory text (e.g. "x = confidential")
+                    if in_region:
+                        for tok in STANDARD_SYMBOL_TOKENS:
+                            # Use word-boundary match to avoid false positives
+                            pattern = r'\b' + re.escape(tok) + r'\b'
+                            if re.search(pattern, cell.value):
+                                symbols_found.append(tok)
 
                     # French decimal comma detection
                     if in_region and re.match(r'^-?\d+,\d+$', cell.value.strip()):
@@ -270,7 +273,9 @@ class ExcelInspector:
                         tx = title.tx
                         if hasattr(tx, 'rich'):
                             for p in tx.rich.paragraphs:
-                                for r in getattr(p, 'runs', []):
+                                # openpyxl Paragraph exposes runs as .r, not .runs
+                                runs = getattr(p, 'r', None) or getattr(p, 'runs', [])
+                                for r in runs:
                                     t = getattr(r, 't', '') or ''
                                     chart_title_text += t
                     elif hasattr(title, 'text'):
@@ -512,8 +517,10 @@ class ExcelInspector:
             findings.append(self._make_finding("T101-NO-EMPTY-CELLS", "tables101", ws.title,
                                                  self._format_cell_location(refs, f"{p.empty_data_cells} empty cell(s)"), refs))
 
-        # T101-STANDARD-SYMBOLS — exact match from standard registry
-        if not p.symbols_found:
+        # T101-STANDARD-SYMBOLS — fires when the table has empty/suppressed data
+        # cells (which should contain standard symbols) but no standard symbols
+        # are found. A table with complete data does not need symbols.
+        if not p.symbols_found and p.empty_data_cells > 0:
             findings.append(self._make_finding("T101-STANDARD-SYMBOLS", "tables101", ws.title, "footer/legend"))
 
         # T101-SYMBOL-SUPERSCRIPT-COLUMN
@@ -579,8 +586,9 @@ class ExcelInspector:
             findings.append(self._make_finding("C101-NO-EXTRA-CALCULATIONS", "charts101", ws.title,
                                                  f"{p.formula_cells} formula cell(s)"))
 
-        # C101-STANDARD-SYMBOLS
-        if not p.symbols_found:
+        # C101-STANDARD-SYMBOLS — fires when chart data has empty cells
+        # (which should contain standard symbols) but none are found
+        if not p.symbols_found and p.empty_data_cells > 0:
             findings.append(self._make_finding("C101-STANDARD-SYMBOLS", "charts101", ws.title, "footer/legend"))
 
         # C101-MAX-SIX-SERIES
@@ -631,7 +639,9 @@ class ExcelInspector:
             findings.append(self._make_finding("C101-SOURCE-PRESENT", "charts101", ws.title, "footer"))
 
         # C101-MAP-IMAGE-DESCRIPTIVE-TEXT
-        if p.chart_count > 0 and not p.has_descriptive_text and p.chart_title_text:
+        # Only fires when a chart exists, has a title, but has NO data table
+        # backing it (i.e. it's a map/figure/image without underlying data).
+        if p.chart_count > 0 and not p.has_descriptive_text and p.chart_title_text and p.data_cell_count == 0:
             findings.append(self._make_finding("C101-MAP-IMAGE-DESCRIPTIVE-TEXT", "charts101", ws.title, "descriptive text"))
 
         return findings
@@ -645,7 +655,9 @@ class ExcelInspector:
                     if hasattr(tx, 'rich'):
                         parts = []
                         for p in tx.rich.paragraphs:
-                            for r in getattr(p, 'runs', []):
+                            # openpyxl Paragraph exposes runs as .r, not .runs
+                            runs = getattr(p, 'r', None) or getattr(p, 'runs', [])
+                            for r in runs:
                                 t = getattr(r, 't', '') or ''
                                 parts.append(t)
                         return ''.join(parts)

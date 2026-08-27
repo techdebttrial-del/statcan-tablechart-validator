@@ -196,7 +196,9 @@ class TestC101SourcePresent:
 # ---------------------------------------------------------------------------
 
 class TestC101StandardSymbols:
-    def test_fail_when_no_symbols_in_chart_sheet(self):
+    def test_fail_when_empty_cells_and_no_symbols_in_chart_sheet(self):
+        """C101-STANDARD-SYMBOLS fires when chart data has empty cells
+        but no standard symbols are present."""
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "chart1"
@@ -204,9 +206,10 @@ class TestC101StandardSymbols:
         ws["B1"] = "Val"
         ws["A2"] = "A"
         ws["B2"] = 10
+        ws["A3"] = "B"
+        # Leave B3 empty — this is an empty data cell that should have a symbol
         # Use text with NO standard symbol tokens as substrings
-        ws["A3"] = "ABC Data Only"
-        # No symbol definitions
+        ws["A4"] = "Source: Test"
 
         chart = BarChart()
         data = Reference(ws, min_col=2, min_row=1, max_row=2)
@@ -218,6 +221,33 @@ class TestC101StandardSymbols:
             findings = _make_inspector().inspect_workbook(path)
             ids = _rule_ids(findings)
             assert "C101-STANDARD-SYMBOLS" in ids
+            assert "C101-NO-EMPTY-CELLS" in ids
+        finally:
+            os.unlink(path)
+
+    def test_pass_when_no_empty_cells_and_no_symbols(self):
+        """A chart with complete data (no empty cells) does not need symbols."""
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "chart1"
+        ws["A1"] = "Cat"
+        ws["B1"] = "Val"
+        ws["A2"] = "A"
+        ws["B2"] = 10
+        ws["A3"] = "B"
+        ws["B3"] = 20
+        ws["A4"] = "Source: Test"
+
+        chart = BarChart()
+        data = Reference(ws, min_col=2, min_row=1, max_row=3)
+        chart.add_data(data, titles_from_data=True)
+        ws.add_chart(chart, "D1")
+
+        path = _save_wb(wb)
+        try:
+            findings = _make_inspector().inspect_workbook(path)
+            ids = _rule_ids(findings)
+            assert "C101-STANDARD-SYMBOLS" not in ids
         finally:
             os.unlink(path)
 

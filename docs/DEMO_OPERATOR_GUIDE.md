@@ -54,7 +54,7 @@ python -m pytest -q
 Expected result:
 
 ```text
-102 passed
+139 passed
 ```
 
 If this does not pass, do not present the application as release-ready. Contact the technical owner.
@@ -120,6 +120,7 @@ The following are the expected results from the current committed release. Count
 | `t101_perfect_en.xlsx` | **0 findings**; `COMPLIANT` | A compliant English Tables 101 workbook passes cleanly. |
 | `t101_perfect_fr.xlsx` | **0 findings**; `COMPLIANT` | A compliant French workbook passes cleanly. |
 | `c101_perfect.xlsx` | **0 findings**; `COMPLIANT` | A compliant Charts 101 workbook passes cleanly. |
+| `daily_employment_chart_2026.xlsx` | **0 findings**; `COMPLIANT` | A realistic LFS employment chart passes cleanly. |
 
 A passing workbook must not show a false warning merely because it contains a source line, notes, or approved symbols.
 
@@ -127,14 +128,22 @@ A passing workbook must not show a false warning merely because it contains a so
 
 | File | Expected result | Main findings to point out |
 |---|---:|---|
-| `t101_fail_all.xlsx` | **11 findings**; `NOT_COMPLIANT` | Wrong sheet naming, gridlines off, formulas, empty cells, missing symbols, missing unit row, missing source, leading-space indentation, and related table failures. |
-| `c101_fail_all.xlsx` | **5 findings**; `NOT_COMPLIANT` | More than six series, invalid chart dimensions, missing source, and missing standard symbols. |
+| `t101_fail_all.xlsx` | **13 findings** (11 unique rules); `NOT_COMPLIANT` | Wrong sheet naming, gridlines off, formulas, empty cells, color fill, missing symbols, missing unit row, missing source, leading-space indentation, row-spanning merge, and missing row stubs. |
+| `c101_fail_all.xlsx` | **7 findings**; `NOT_COMPLIANT` | Empty cells, more than six series, invalid chart dimensions, title with superscript, missing source, and missing standard symbols. |
 
 The deliberately failing workbooks are synthetic teaching fixtures, not published StatCan products. Do not describe them as official source material.
 
-### 5.3 Mixed and edge-case workbooks
+### 5.3 Fresh fixtures from recent StatCan publications
 
-These are useful if the client wants to see realistic variation rather than a perfect/failing binary demo.
+These are modeled on recent StatCan Daily releases with engineered failures built in.
+
+| File | Expected result | Purpose |
+|---|---:|---|
+| `daily_retail_2026.xlsx` | **7 findings**; `NOT_COMPLIANT` | Retail Trade Daily with gridlines off, formula, color fill, row span, empty cells, no source, wrong sheet name. |
+| `daily_gdp_q2_2026.xlsx` | **2 findings** | GDP by Industry with gridlines off and abbreviations in headers. Low-severity demo. |
+| `daily_cpi_chart_2026.xlsx` | **4 findings**; `NOT_COMPLIANT` | CPI chart with 7 series, title superscript, narrow width, short height. |
+
+### 5.4 Mixed and edge-case workbooks
 
 | File | Expected result | Purpose |
 |---|---|---|
@@ -143,8 +152,6 @@ These are useful if the client wants to see realistic variation rather than a pe
 | `bilingual_gdp.xlsx` | Findings expected | English/French GDP-style sheets. Demonstrates language selection and bilingual output. |
 | `edge_cases.xlsx` | Findings expected; no crash | Empty, header-only, single-cell, and minimal-sheet cases. Demonstrates resilience to incomplete workbooks. |
 | `t101_fail_specific.xlsx` | Targeted findings | Individual table-rule examples. Use when the client asks to isolate one rule. |
-
-For these files, the exact finding count is not the primary demonstration assertion because they intentionally combine several scenarios. Point to the specific finding and explain that the operator can review, record a decision, replace the workbook, and revalidate.
 
 ## 6. Recommended client demonstration sequence
 
@@ -155,7 +162,7 @@ For these files, the exact finding count is not the primary demonstration assert
 3. Select English and validate.
 4. Show `COMPLIANT` and zero findings.
 5. Upload `t101_fail_all.xlsx` as a replacement revision.
-6. Show that the same deterministic engine identifies 11 findings.
+6. Show that the same deterministic engine identifies 13 findings across 11 unique rules.
 7. Expand one finding and show its severity, rule ID, sheet, location, and bilingual text.
 
 **Expected message:** Everything the validator does is deterministic and
@@ -166,7 +173,7 @@ requires no LLM or network.
 1. Upload `c101_perfect.xlsx`.
 2. Show zero findings.
 3. Replace it with `c101_fail_all.xlsx`.
-4. Show five findings, especially the series-count, size, source, and symbol checks.
+4. Show seven findings, especially the series-count, size, title-superscript, source, and symbol checks.
 
 ### Demonstration C — Resolve a finding deterministically
 
@@ -180,6 +187,10 @@ requires no LLM or network.
 6. Explain that the change is deterministic and explicit — no AI "guess", and
    the reviewer always approves the actionable change.
 
+**Note:** Use `T101-NO-EMPTY-CELLS` for the remediation demo. Chart rule
+remediation options (resize, remove series) require manual Excel handling
+and are not auto-applied.
+
 ### Demonstration D — Bilingual workflow
 
 1. Select French as the UI language, or upload `t101_perfect_fr.xlsx` with language `fr`.
@@ -189,6 +200,12 @@ requires no LLM or network.
    translation-unavailable (a deterministic passthrough), with a spot for a
    human-verified translation.
 
+### Demonstration E — Fresh real-world fixtures
+
+1. Upload `daily_retail_2026.xlsx` to show a realistic Retail Trade Daily with multiple failures.
+2. Upload `daily_cpi_chart_2026.xlsx` to show a realistic CPI chart with chart-specific failures.
+3. Upload `daily_employment_chart_2026.xlsx` to show a realistic LFS chart that passes cleanly.
+
 ## 7. What counts as a successful demo
 
 The demo is successful when the operator can show all of the following:
@@ -196,8 +213,8 @@ The demo is successful when the operator can show all of the following:
 - the app starts and is reachable in a browser;
 - a compliant table returns zero findings;
 - a compliant chart returns zero findings;
-- a deliberately failing table returns 11 findings;
-- a deliberately failing chart returns five findings;
+- a deliberately failing table returns 13 findings across 11 unique rules;
+- a deliberately failing chart returns seven findings;
 - findings include bilingual text and locations;
 - a reviewer can resolve a finding through the deterministic resolution options and download the new iteration;
 - an operator can create a project, upload a revision, and download reports;
@@ -258,4 +275,4 @@ source .venv/bin/activate
 python -m pytest -q
 ```
 
-Expected result: **102 passed**.
+Expected result: **139 passed**.

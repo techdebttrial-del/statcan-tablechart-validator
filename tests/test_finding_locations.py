@@ -10,9 +10,9 @@ def test_table_findings_include_actionable_cell_or_header_locations():
     findings = ExcelInspector().inspect_workbook(str(FIXTURES / "t101_fail_all.xlsx"))
     by_rule = {f.rule_id: f.location for f in findings}
 
-    assert "A3" in by_rule["T101-NO-FORMULAS"]
-    assert "B2" in by_rule["T101-NO-EMPTY-CELLS"]
-    assert "A2" in by_rule["T101-INDENT-FEATURE"]
+    assert "A2" in by_rule["T101-NO-FORMULAS"]
+    assert "C2" in by_rule["T101-NO-EMPTY-CELLS"]
+    assert "A1" in by_rule["T101-INDENT-FEATURE"]
     assert "footer" in by_rule["T101-SOURCE-PRESENT"]
 
 

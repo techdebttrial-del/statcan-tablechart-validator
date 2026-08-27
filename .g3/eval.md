@@ -20,7 +20,7 @@ has at least one pass and one fail test.
 
 ### AT3 — Full test suite passes
 **Command:** `python -m pytest tests/ -v --tb=short`
-**Expected:** 100+ tests passed, 0 failed, 0 errors (currently 102).
+**Expected:** 100+ tests passed, 0 failed, 0 errors (currently 139).
 
 ### AT4 — Real-world fixtures produce expected findings
 **Command:** `python -c "

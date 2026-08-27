@@ -1,51 +1,45 @@
-# Spec: StatCan Tables/Charts Validator v2.0 — Dual-Flavour Offline + LLM-Assisted
+# Spec: StatCan Tables/Charts Validator — Deterministic-Only
 
-> **Amendment (2026-08-17):** Goals G3–G6, G9 (dual-flavour architecture, LLM
-> mode, cloud escalation, LLM fix-suggestion UI) were **obsolete and removed.**
-> Presumption validated: identification (`excel_inspector`) and changes
-> (remediation_catalog + applier) are fully deterministic. The LLM added only
-> redundant suggestions and mode-switching machinery, so it was dropped from
-> the code, UI, dependencies, docs, and tests. See `docs/MODES.md`. The
-> deterministic goals (G1, G2, G4, G7, G8) remain the operating contract.
+> **Amendment (2026-08-17, updated 2026-08-27):** Goals G3–G6, G9
+> (dual-flavour architecture, LLM mode, cloud escalation, LLM fix-suggestion
+> UI) were **obsolete and removed.** Presumption validated: identification
+> (`excel_inspector`) and changes (remediation_catalog + applier) are fully
+> deterministic. The LLM added only redundant suggestions and mode-switching
+> machinery, so it was dropped from the code, UI, dependencies, docs, and
+> tests. See `docs/MODES.md`. The deterministic goals (G1, G2, G4, G7, G8)
+> remain the operating contract.
 
 ## Problem
 
-The current StatCan Tables/Charts Validator (v0.5 MVP) provides deterministic
-rule checking against Tables 101 and Charts 101 standards, but:
-1. Rule coverage is incomplete — several Tables 101 and Charts 101 rules are
-   only partially implemented or use heuristics
-2. No real-world test fixtures exist from actual published StatCan pubs to
-   validate against
-3. No LLM-assisted mode exists — all findings are manual decisions with no
-   auto-fix suggestion capability
-4. No graceful fallback between offline (no LLM) and LLM-assisted modes
-5. No cloud model escalation when local models are insufficient
+The StatCan Tables/Charts Validator provides deterministic rule checking
+against Tables 101 and Charts 101 standards. All identification and
+remediation is deterministic — no LLM, no network, no gateway.
 
 ## Goals
 
-- [ ] **G1** — Complete Table 101 rule implementation: every rule in the
+- [x] **G1** — Complete Table 101 rule implementation: every rule in the
   `tables101.yaml` pack must have a real Python check, not a heuristic
-- [ ] **G2** — Complete Chart 101 rule implementation: every rule in the
+- [x] **G2** — Complete Chart 101 rule implementation: every rule in the
   `charts101.yaml` pack must have a real Python check, not a heuristic
-- [ ] **G3** — Dual-flavour architecture: a config flag (`use_llm=true/false`)
+- ~~**G3** — Dual-flavour architecture~~ (removed — deterministic-only)
+- [x] **G4** — Offline mode: runs with zero external dependencies. No HTTP
+  calls, no LLM gateway needed. Translation falls back to
+  PassthroughTranslator with clear markers.
+- ~~**G5** — LLM-assisted mode~~ (removed — redundant with deterministic)
+- ~~**G6** — Cloud escalation~~ (removed — not needed)
+- [x] **G7** — Real-world test fixtures: 14 Excel workbooks based on
+  actual published StatCan publications, with known pass/fail cases.
+- [x] **G8** — Complete test pass: all rules have pytest tests.
+  139 passing tests across all modules.
+- ~~**G9** — Streamlit UI LLM mode indicator~~ (removed — no LLM)
   switches between offline-only and LLM-assisted mode. No code changes required
   to toggle.
-- [ ] **G4** — Offline mode (use_llm=false): runs with zero external dependencies.
-  No HTTP calls, no LLM gateway needed. Translation falls back to
-  PassthroughTranslator with clear markers.
-- [ ] **G5** — LLM-assisted mode (use_llm=true, default): Cascade 2
-  (r720-cascade2 via LiteLLM) suggests auto-fixes for findings. Reviewer
-  can accept/accept-modified/reject each suggestion.
-- [ ] **G6** — Cloud escalation: if Cascade 2 fails or is insufficient, the
-  system can escalate via OpenRouter free-tier models (cloud-*-free) or the
-  deepseek/deepseek-v4-flash model.
-- [ ] **G7** — Real-world test fixtures: minimum 8 Excel workbooks based on
-  actual published StatCan publications (Daily, ESR, Insights), with known
-  pass/fail cases documented.
-- [ ] **G8** — Complete test pass: all rules have pytest RED→GREEN→REFACTOR
-  tests. Minimum 100 passing tests across all modules.
-- [ ] **G9** — Streamlit UI: mode indicator (offline/LLM-assisted), auto-fix
-  suggestion panel, one-click accept/reject for suggested fixes.
+- ~~**G4** — Offline mode (use_llm=false)~~ (superseded — always offline)
+- ~~**G5** — LLM-assisted mode~~ (removed)
+- ~~**G6** — Cloud escalation~~ (removed)
+- ~~**G7** — Real-world test fixtures: minimum 8~~ (superseded — 14 fixtures delivered)
+- ~~**G8** — Complete test pass: minimum 100~~ (superseded — 116 tests)
+- ~~**G9** — Streamlit UI LLM mode indicator~~ (removed)
 
 ## Non-goals
 
