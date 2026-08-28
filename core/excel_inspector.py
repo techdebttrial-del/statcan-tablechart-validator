@@ -578,13 +578,15 @@ class ExcelInspector:
 
         # C101-NO-EMPTY-CELLS
         if p.empty_data_cells > 0:
+            refs = self._empty_data_cells(ws)
             findings.append(self._make_finding("C101-NO-EMPTY-CELLS", "charts101", ws.title,
-                                                 f"{p.empty_data_cells} empty cell(s)"))
+                                                self._format_cell_location(refs, f"{p.empty_data_cells} empty cell(s)"), refs))
 
         # C101-NO-EXTRA-CALCULATIONS
         if p.has_formulas:
+            refs = self._matching_cells(ws, lambda c: isinstance(c.value, str) and c.value.startswith("="))
             findings.append(self._make_finding("C101-NO-EXTRA-CALCULATIONS", "charts101", ws.title,
-                                                 f"{p.formula_cells} formula cell(s)"))
+                                                self._format_cell_location(refs, f"{p.formula_cells} formula cell(s)"), refs))
 
         # C101-STANDARD-SYMBOLS — fires when chart data has empty cells
         # (which should contain standard symbols) but none are found

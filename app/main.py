@@ -20,7 +20,7 @@ from core.models import (
     ReplacementReason, FindingStatus,
 )
 from core.remediation_applier import apply_remediation, resolve_affected_cells
-from core.iteration_lineage import current_workbook, next_iteration
+from core.iteration_lineage import current_workbook, next_iteration, latest_iteration
 from core.remediation_catalog import remediation_options, approved_symbol_options
 
 st.set_page_config(
@@ -142,6 +142,37 @@ with tab_projects:
                  if lang == "en" else
                  f"Classeur de base actuel : `{active_workbook.name}`. Chaque correction acceptée crée une nouvelle itération immuable et préserve les corrections précédentes.")
             )
+
+            # ---- Download workbook (always visible) ---------------------
+            iter = latest_iteration(workbook_dir, revision.original_filename)
+            dl_cols = st.columns(2)
+            with dl_cols[0]:
+                with open(str(active_workbook), "rb") as fh:
+                    wb_bytes = fh.read()
+                st.download_button(
+                    "⬇ Download original workbook" if lang == "en" else "⬇ Télécharger le classeur original",
+                    wb_bytes, file_name=active_workbook.name,
+                    key="dl-original-workbook",
+                    use_container_width=True,
+                )
+            with dl_cols[1]:
+                if iter:
+                    with open(str(iter), "rb") as fh:
+                        iter_bytes = fh.read()
+                    st.download_button(
+                        "⬇ Download revised workbook" if lang == "en" else "⬇ Télécharger le classeur révisé",
+                        iter_bytes, file_name=iter.name,
+                        key="dl-revised-workbook",
+                        use_container_width=True,
+                        type="primary",
+                    )
+                else:
+                    st.info(
+                        "No revisions yet. Apply a fix below to create a revised workbook."
+                        if lang == "en" else
+                        "Aucune révision. Appliquez une correction ci-dessous pour créer un classeur révisé."
+                    )
+
             st.subheader(f"{t(lang,'findings')} — Revision {revision.revision_number}")
             st.write(f"**{revision.compliance_status.value}**")
 
@@ -165,6 +196,7 @@ with tab_projects:
                     # ---- Deterministic remediation choices ----------------
                     options = remediation_options(f.rule_id)
                     if options and f.status == FindingStatus.OPEN:
+                        st.markdown("---")
                         st.markdown("##### 🛠 Deterministic resolution options" if lang == "en" else "##### 🛠 Options de résolution déterministes")
                         selected_cell = None
                         if affected_cells:
@@ -192,7 +224,12 @@ with tab_projects:
                                 "Approved symbol" if lang == "en" else "Symbole approuvé",
                                 approved_symbol_options(), key=f"rem-symbol-{f.finding_id}",
                             )
-                        if st.button("Create new workbook iteration" if lang == "en" else "Créer une nouvelle itération du classeur", key=f"rem-save-{f.finding_id}"):
+                        if st.button(
+                            "✅ Apply change & create iteration" if lang == "en" else "✅ Appliquer et créer une itération",
+                            key=f"rem-save-{f.finding_id}",
+                            type="primary",
+                            use_container_width=True,
+                        ):
                             source_path = str(active_workbook)
                             output_path_obj = next_iteration(workbook_dir, revision.original_filename, f.finding_id)
                             output_name = output_path_obj.name
@@ -207,13 +244,8 @@ with tab_projects:
                                         commit_message=f"Create workbook iteration for {f.finding_id}",
                                     )
                                 st.session_state[f"rem-recorded-{f.finding_id}"] = {"option": selected["id"], "value": input_value, "path": output_path}
-                                st.success((f"New workbook iteration created and saved (commit {commit.commit_id[:8]}). Review it, then upload it as the next revision." if lang == "en" else f"Nouvelle itération créée et enregistrée (commit {commit.commit_id[:8]}). Vérifiez-la, puis téléversez-la comme prochaine révision."))
-                                with open(output_path, "rb") as fh:
-                                    st.download_button(
-                                        "Download new workbook iteration" if lang == "en" else "Télécharger la nouvelle itération",
-                                        fh.read(), file_name=output_name,
-                                        key=f"rem-download-{f.finding_id}",
-                                    )
+                                st.success((f"✅ Iteration created (commit {commit.commit_id[:8]}). Download it below, then upload as next revision." if lang == "en" else f"✅ Itération créée (commit {commit.commit_id[:8]}). Téléchargez-la ci-dessous, puis téléversez-la comme prochaine révision."))
+                                st.rerun()
                             else:
                                 st.warning(result.message)
 
@@ -243,7 +275,10 @@ with tab_projects:
                                 t(lang, "follow_up_owner"),
                                 key=f"fu-{f.finding_id}",
                             )
-                            if st.form_submit_button(t(lang, "submit_decision")):
+                            if st.form_submit_button(
+                                t(lang, "submit_decision"),
+                                use_container_width=True,
+                            ):
                                 store.record_decision(
                                     project, revision, f.finding_id,
                                     decision_type=DecisionType(decision_type),
@@ -257,15 +292,18 @@ with tab_projects:
 
             # ---- Report download ----------------------------------------
             st.markdown("---")
+            st.subheader("📄 Audit Reports" if lang == "en" else "📄 Rapports d'audit")
             reports = reportgen.generate_both(project)
             colE, colF = st.columns(2)
             with colE:
                 st.download_button(
-                    "Download EN report", reports["en"],
+                    "⬇ Download EN report", reports["en"],
                     file_name=f"{project.project_id}_report_en.md",
+                    use_container_width=True,
                 )
             with colF:
                 st.download_button(
-                    "Télécharger rapport FR", reports["fr"],
+                    "⬇ Télécharger rapport FR", reports["fr"],
                     file_name=f"{project.project_id}_report_fr.md",
+                    use_container_width=True,
                 )
