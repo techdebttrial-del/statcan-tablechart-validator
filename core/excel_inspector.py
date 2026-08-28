@@ -524,14 +524,18 @@ class ExcelInspector:
             findings.append(self._make_finding("T101-STANDARD-SYMBOLS", "tables101", ws.title, "footer/legend"))
 
         # T101-SYMBOL-SUPERSCRIPT-COLUMN
-        # Check if symbols are in a superscript column (heuristic: check for superscript markers)
+        # Symbol cells without superscript formatting
         if p.symbols_found and not p.has_superscript_text:
-            findings.append(self._make_finding("T101-SYMBOL-SUPERSCRIPT-COLUMN", "tables101", ws.title, "symbol placement"))
+            refs = self._matching_cells(ws, lambda c: isinstance(c.value, str) and any(
+                re.search(r'\b' + re.escape(tok) + r'\b', c.value) for tok in STANDARD_SYMBOL_TOKENS))
+            findings.append(self._make_finding("T101-SYMBOL-SUPERSCRIPT-COLUMN", "tables101", ws.title,
+                                                self._format_cell_location(refs, "symbol placement"), refs))
 
         # T101-AVOID-ROW-SPANNING
         if p.merged_row_spans > 0:
+            span_refs = [str(r) for r in ws.merged_cells.ranges if r.min_row != r.max_row]
             findings.append(self._make_finding("T101-AVOID-ROW-SPANNING", "tables101", ws.title,
-                                                 f"merged range(s): {', '.join(str(r) for r in ws.merged_cells.ranges if r.min_row != r.max_row)}"))
+                                                 f"merged range(s): {', '.join(span_refs)}", span_refs))
 
         # T101-FOOTNOTES-OWN-ROW
         if p.footer_item_count >= 2 and not p.footer_rows_separated:
@@ -596,25 +600,27 @@ class ExcelInspector:
         # C101-MAX-SIX-SERIES
         if p.max_series_in_any_chart > 6:
             findings.append(self._make_finding("C101-MAX-SIX-SERIES", "charts101", ws.title,
-                                                 f"{self._chart_location(p.charts[0])}; {p.max_series_in_any_chart} series"))
+                                                 f"{self._chart_location(p.charts[0])}; {p.max_series_in_any_chart} series",
+                                                 [self._chart_location(p.charts[0])]))
 
         # C101-SIZE-WIDTH and C101-SIZE-HEIGHT-MIN
         for ch in p.charts:
             chart_name = self._get_chart_title(ch)
+            chart_loc = self._chart_location(ch)
             width_cm = self._chart_width_cm(ch)
             if width_cm is not None and not (CHART_WIDTH_MIN_CM <= width_cm <= CHART_WIDTH_MAX_CM):
                 findings.append(self._make_finding("C101-SIZE-WIDTH", "charts101", ws.title,
-                                                     f"{self._chart_location(ch)}; width {width_cm:.1f}cm"))
+                                                     f"{chart_loc}; width {width_cm:.1f}cm", [chart_loc]))
 
             height_cm = self._chart_height_cm(ch)
             if height_cm is not None and height_cm < CHART_HEIGHT_MIN_CM:
                 findings.append(self._make_finding("C101-SIZE-HEIGHT-MIN", "charts101", ws.title,
-                                                     f"{self._chart_location(ch)}; height {height_cm:.1f}cm"))
+                                                     f"{chart_loc}; height {height_cm:.1f}cm", [chart_loc]))
 
         # C101-NO-TITLE-SUPERSCRIPT
         if p.chart_title_text and '^' in p.chart_title_text:
             findings.append(self._make_finding("C101-NO-TITLE-SUPERSCRIPT", "charts101", ws.title,
-                                                 f"title: '{p.chart_title_text[:50]}'"))
+                                                 f"title: '{p.chart_title_text[:50]}'", [self._chart_location(p.charts[0]) if p.charts else ws.title]))
 
         # C101-NO-UOM-IN-AXIS-LABELS — heuristic: check for % and $ in data text
         if p.has_abbreviation_or_symbol:
