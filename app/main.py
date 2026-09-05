@@ -54,7 +54,7 @@ with st.sidebar:
     lang = st.session_state.ui_lang
 
     st.markdown("---")
-    st.caption("StatCan Tables/Charts Validator — deterministic rules")
+    st.caption(t(lang, "sidebar_caption"))
 
 # ---- Main UI --------------------------------------------------------
 
