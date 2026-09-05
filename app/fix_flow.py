@@ -57,6 +57,14 @@ def apply_fix(store, project, revision, finding,
     result = apply_remediation(source_path, output_path, finding, option_id,
                                value, target_cell)
     if not result.success:
+        # The applier copies the source to output_path before validating the
+        # choice; remove the partial copy so no phantom iteration file is
+        # left on disk (it was never committed, never shown as an iteration).
+        try:
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+        except OSError:
+            pass
         return {"success": False, "message": result.message}
 
     relative_output = f"reviews/{project.project_id}/workbooks/{output_obj.name}"
