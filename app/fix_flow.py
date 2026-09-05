@@ -113,8 +113,10 @@ def revalidate_findings(findings: list, active_workbook_path: str) -> List[Dict[
     they remain the audit record.
 
     Semantics:
-    - rule still fires on the active workbook -> affected cells refreshed,
-      resolved only if the finding was already decided (waived/rejected/...);
+    - rule still fires on the active workbook -> NOT resolved (regardless of
+      how many per-cell locations it carries; workbook-level rules such as
+      gridlines or source-presence legitimately have none), unless the
+      finding was already decided (waived/rejected/...);
     - engine-owned rule (T101-*/C101-*) that no longer fires -> the finding
       was fixed by an iteration: resolved, no remaining cells;
     - legacy/foreign rule not observable by the engine -> fall back to the
@@ -129,7 +131,7 @@ def revalidate_findings(findings: list, active_workbook_path: str) -> List[Dict[
         decided = finding.status.value != "open"
         if match is not None:
             affected = list(getattr(match, "affected_cells", None) or [])
-            resolved = decided or not affected
+            resolved = decided
         elif finding.rule_id.startswith(("T101-", "C101-")):
             # Engine owns this rule and it no longer fires: fixed by iteration.
             affected = []

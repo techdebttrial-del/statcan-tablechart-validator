@@ -140,8 +140,21 @@ def apply_remediation(source_path: str, target_path: str, finding: Finding,
         ws.cell(row=source_row, column=1, value=value or "Source: Statistics Canada")
 
     elif option_id == "rename_sheet":
-        # Rename the sheet to the provided tblXX name
-        new_name = value or "tbl1"
+        # Rename the sheet to the provided tblXX name. Excel forbids
+        # : \ / ? * [ ] in sheet titles and caps length at 31; refuse these
+        # BEFORE touching the workbook so the reviewer gets a friendly
+        # message instead of an openpyxl traceback.
+        new_name = (value or "tbl1").strip()
+        if any(ch in new_name for ch in ':\\/?*[]'):
+            return RemediationResult(
+                False,
+                "Invalid sheet name. Avoid : \\ / ? * [ ] and keep it short.",
+            )
+        if len(new_name) > 31:
+            return RemediationResult(
+                False,
+                "Sheet names are limited to 31 characters.",
+            )
         ws.title = new_name
 
     elif option_id == "unmerge":
