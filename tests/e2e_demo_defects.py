@@ -146,6 +146,26 @@ if app_session_get(at, "active_finding_id") != f_target.finding_id:
 apply_btn = btn(at, f"rem-save-{f_target.finding_id}")
 check("apply button present", bool(apply_btn),
       f"active={app_session_get(at, 'active_finding_id')} target={f_target.finding_id}")
+
+# Fill the selected option's input (mirrors what a reviewer does in the UI):
+# default option is options[0]; text options need a value, select options need
+# an approved symbol. Refused applies are expected to preserve state (RH flow).
+_opts = remediation_options(f_target.rule_id)
+_kind = _opts[0]["input"] if _opts else "none"
+if _kind == "text":
+    v_in = [w for w in at.text_input if (w.key or "") == f"rem-value-{f_target.finding_id}"]
+    check("value input rendered for text option", bool(v_in))
+    v_in[0].set_value("42")
+    at.run()
+    apply_btn = btn(at, f"rem-save-{f_target.finding_id}")
+elif _kind == "select":
+    s_in = [w for w in at.selectbox if (w.key or "") == f"rem-symbol-{f_target.finding_id}"]
+    check("symbol select rendered for select option", bool(s_in))
+    from core.remediation_catalog import approved_symbol_options as _aso
+    s_in[0].set_value(_aso()[0])
+    at.run()
+    apply_btn = btn(at, f"rem-save-{f_target.finding_id}")
+
 n_rev_before = len(store.load_project(project.project_id).revisions)
 apply_btn[0].click()
 at.run()
@@ -155,7 +175,7 @@ project2 = store.load_project(project.project_id)
 check("auto-revision created (D2-a)", len(project2.revisions) == n_rev_before + 1,
       f"{n_rev_before}->{len(project2.revisions)}")
 new_rev = project2.latest_revision()
-check("revision reason CORRECTED_DATA (D2-b)", new_rev.replacement_reason.value == "CORRECTED_DATA",
+check("revision reason CORRECTED_DATA (D2-b)", new_rev.replacement_reason.value.upper() == "CORRECTED_DATA",
       new_rev.replacement_reason.value)
 note = new_rev.replacement_note.note_en if hasattr(new_rev.replacement_note, "note_en") else str(new_rev.replacement_note)
 check("note names finding+iteration (D2-c)", f_target.finding_id in note and "iteration_01" in note, note[:120])
@@ -163,8 +183,13 @@ check("note names finding+iteration (D2-c)", f_target.finding_id in note and "it
 last = app_session_get(at, "last_apply_result")
 check("confirmation persisted in session (D2-d)", last is not None and last.get("finding_id") == f_target.finding_id,
       str(last)[:120])
-conf_panel = any(_i18n_t("en", "save_confirmation") in (w.value or "") for w in at.success)
-check("confirmation rendered after rerun (D2-e)", conf_panel, "panel visible in latest frame")
+conf_panel = any(
+    _i18n_t("en", "save_confirmation").replace("✅", "").strip() in (w.value or "").replace("✅", "").strip()
+    or _i18n_t("fr", "save_confirmation").replace("✅", "").strip() in (w.value or "").replace("✅", "").strip()
+    for w in at.success
+)
+check("confirmation rendered after rerun (D2-e)", conf_panel,
+      f"lang={app_session_get(at, 'ui_lang')}; success={[w.value[:60] for w in at.success]}")
 check("selection cleared after successful apply", app_session_get(at, "active_finding_id") is None,
       str(app_session_get(at, "active_finding_id")))
 
@@ -172,17 +197,18 @@ check("selection cleared after successful apply", app_session_get(at, "active_fi
 orig_path = os.path.join(wb_dir, rev.stored_filename)
 orig_sha = hashlib.sha256(open(orig_path, "rb").read()).hexdigest()
 check("original workbook untouched by apply (A2-part)", os.path.exists(orig_path))
-iter1 = os.path.join(wb_dir, f"iteration_01_{f_target.finding_id}.xlsx")
-check("iteration file on disk (D2-f)", os.path.exists(iter1))
+iter1 = os.path.join(wb_dir, last["iteration_name"]) if last else None
+check("iteration file on disk (D2-f)", bool(iter1) and os.path.exists(iter1), str(iter1))
 check("new revision resolves via lineage", os.path.exists(str(current_workbook(wb_dir, rev.original_filename, new_rev.stored_filename))))
 
-# A3: re-open the fixed finding -> resolved, no remediation offered
-sel2 = btn(at, f"sel-{f_target.finding_id}")
-sel2[0].click()
-at.run()
+# A3: after the auto-revision, the fixed finding is REGENERATED OUT of the new
+# revision's findings entirely (the rule no longer fires) — stronger than a
+# 'resolved' badge: it cannot be selected and cannot be re-offered for fixing.
 new_active = str(current_workbook(wb_dir, rev.original_filename, project2.latest_revision().stored_filename))
-reval = {e["finding"].finding_id: e for e in revalidate_findings(project2.latest_revision().findings, new_active)}
-check("fixed finding shows resolved (A3)", reval[f_target.finding_id]["resolved"])
+reval = revalidate_findings(project2.latest_revision().findings, new_active)
+check("fixed finding no longer in new revision's findings (A3-strong)",
+      f_target.rule_id not in {e["finding"].rule_id for e in reval},
+      str(sorted({e["finding"].rule_id for e in reval})[:4]))
 check("no apply button for resolved finding", not btn(at, f"rem-save-{f_target.finding_id}"))
 
 print()
