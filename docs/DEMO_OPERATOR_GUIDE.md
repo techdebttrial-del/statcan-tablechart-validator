@@ -54,7 +54,7 @@ python -m pytest -q
 Expected result:
 
 ```text
-171 passed
+172 passed
 ```
 
 If this does not pass, do not present the application as release-ready. Contact the technical owner.
@@ -275,7 +275,7 @@ source .venv/bin/activate
 python -m pytest -q
 ```
 
-Expected result: **171 passed**.
+Expected result: **172 passed**.
 
 ## 11. Client deployment
 

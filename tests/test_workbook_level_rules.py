@@ -112,3 +112,19 @@ def test_rename_sheet_accepts_valid_name(failing_project):
     outcome = apply_fix(store, project, revision, finding,
                         "rename_sheet", "tbl_fail", None, workbook_dir, "en")
     assert outcome["success"] is True, outcome
+
+
+def test_failed_apply_leaves_no_iteration_file(failing_project):
+    """A refused remediation must not leave a phantom iteration file behind
+    (the copy happens inside the applier before validation)."""
+    store, project, revision, workbook_dir = failing_project
+    from app.fix_flow import apply_fix
+    finding = next(f for f in revision.findings
+                   if f.rule_id == "T101-ONE-TABLE-PER-SHEET")
+    before = set(os.listdir(workbook_dir))
+    outcome = apply_fix(store, project, revision, finding,
+                        "rename_sheet", "bad:name", None, workbook_dir, "en")
+    assert outcome["success"] is False
+    after = set(os.listdir(workbook_dir))
+    assert after == before, f"phantom files left: {after - before}"
+    assert not any(p.startswith("iteration_") for p in after - before)
