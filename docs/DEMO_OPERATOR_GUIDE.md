@@ -54,7 +54,7 @@ python -m pytest -q
 Expected result:
 
 ```text
-139 passed
+166 passed
 ```
 
 If this does not pass, do not present the application as release-ready. Contact the technical owner.
@@ -275,4 +275,35 @@ source .venv/bin/activate
 python -m pytest -q
 ```
 
-Expected result: **139 passed**.
+Expected result: **166 passed**.
+
+## 11. Client deployment
+
+Share the repository as-is; a client machine needs only Python 3.10+ and git.
+
+```bash
+git clone http://192.168.2.170:3000/agent/statcan-tablechart-validator.git
+cd statcan-tablechart-validator
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+streamlit run app/main.py --server.port 8502
+```
+
+The app listens on `http://localhost:8502` (use the Network URL Streamlit
+prints for access from other machines on the same network).
+
+For a clean demonstration slate, point the data root at an empty directory
+before starting the app:
+
+```bash
+TVC_DATA_ROOT=/path/to/demo/data streamlit run app/main.py --server.port 8502
+```
+
+`TVC_DATA_ROOT` is where review projects, workbook iterations, and the
+audit-trail git repository live. Keep it on local disk; back it up like any
+records system.
+
+If the app is stopped unexpectedly it can simply be relaunched with the
+`streamlit run` command above; all committed projects and iterations
+persist in `TVC_DATA_ROOT`.
