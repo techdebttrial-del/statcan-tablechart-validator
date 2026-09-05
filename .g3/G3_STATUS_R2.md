@@ -38,3 +38,25 @@ on final code (http://192.168.2.170:8502, HTTP 200 / health ok).
   persisted across simulated reruns.
 - Corrupt upload → `upload_error` sentinel (no traceback).
 - 8 revisions persisted, reload round-trip OK, EN/FR reports generated.
+
+## Independent verification round (2026-09-05, second session post-gateway-crash)
+
+Reviewer: independent session (not the implementing agent). Scope: docs → code →
+tests → UI. Evidence:
+
+- Full suite: 172 passed (6.5 s), offline, no Streamlit server required.
+- E2E demo-defect walkthrough (tests/e2e_demo_defects.py, streamlit AppTest):
+  31/31 passed — replays the exact client-reported defects against the real UI:
+  D1 selection survives rerun, exactly one detail panel, clean transition to
+  next finding, next-open-finding cycling, selection survives EN↔FR switch;
+  D2 apply → commit → auto-revision (CORRECTED_DATA + bilingual audit note) →
+  persistent confirmation panel, selection cleared, original workbook untouched,
+  iteration file committed, fixed rule regenerated out of the new revision.
+- Fixture spot check (real inspector): perfect_en 0, fail_all 13, c101_perfect 0,
+  c101_fail_all 7 — matches docs.
+- Release acceptance + doc-consistency tests: 8 passed.
+- Fresh Streamlit launch on :8503 (throwaway TVC_DATA_ROOT): HTTP 200, boots clean.
+- Forgejo: HEAD == origin/main after push 9af8e54; ls-tree shows 83 files.
+- AT9 no-LLM regression grep: clean.
+
+Verdict: SHIP for client testing deployment.
