@@ -60,6 +60,6 @@ cat <<EOF
 Then open:  http://localhost:$PORT
 
 (French UI: use the language selector in the app sidebar.)
-Full operator instructions: docs/OPERATOR_GUIDE_EN.md / docs/OPERATOR_GUIDE_FR.md
-If anything failed above: docs/DEPLOYMENT_GUIDE_EN.md § Troubleshooting.
+Full operator instructions: docs/OPERATOR_GUIDE.md (bilingual EN/FR)
+If anything failed above: docs/DEPLOYMENT_GUIDE.md (bilingual EN/FR) § Troubleshooting.
 EOF
