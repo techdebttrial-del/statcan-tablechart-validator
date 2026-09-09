@@ -55,6 +55,8 @@ STRINGS = {
         "sidebar_caption": "StatCan Tables/Charts Validator — deterministic rules",
         "download_original": "⬇ Download original workbook",
         "download_revised": "⬇ Download revised workbook",
+        "download_report_en": "⬇ Download EN report (Markdown)",
+        "download_report_fr": "⬇ Download FR report (Markdown)",
     },
     "fr": {
         "app_title": "Validateur de tableaux et graphiques de StatCan",
@@ -105,6 +107,8 @@ STRINGS = {
         "sidebar_caption": "Validateur de tableaux et graphiques de StatCan — règles déterministes",
         "download_original": "⬇ Télécharger le classeur original",
         "download_revised": "⬇ Télécharger le classeur révisé",
+        "download_report_en": "⬇ Télécharger le rapport EN (Markdown)",
+        "download_report_fr": "⬇ Télécharger le rapport FR (Markdown)",
     },
 }
 

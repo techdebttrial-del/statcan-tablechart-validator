@@ -416,13 +416,13 @@ with tab_projects:
             colE, colF = st.columns(2)
             with colE:
                 st.download_button(
-                    "⬇ Download EN report", reports["en"],
+                    t(lang, "download_report_en"), reports["en"],
                     file_name=f"{project.project_id}_report_en.md",
                     use_container_width=True,
                 )
             with colF:
                 st.download_button(
-                    "⬇ Télécharger rapport FR", reports["fr"],
+                    t(lang, "download_report_fr"), reports["fr"],
                     file_name=f"{project.project_id}_report_fr.md",
                     use_container_width=True,
                 )
