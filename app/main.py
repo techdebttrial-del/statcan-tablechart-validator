@@ -119,6 +119,7 @@ with tab_projects:
             reason_key = st.selectbox(
                 t(lang, "replacement_reason"),
                 [r.value for r in ReplacementReason],
+                format_func=lambda v: t(lang, f"reason_{v}"),
                 key="repl_reason",
             )
             replacement_reason = ReplacementReason(reason_key)
@@ -173,7 +174,9 @@ with tab_projects:
             st.subheader(t(lang, "findings"))
             p_rev, p_comp, p_open, p_res = st.columns(4)
             p_rev.metric(t(lang, "status_panel_revision"), panel["revision_number"])
-            p_comp.metric(t(lang, "status_panel_compliance"), panel["compliance"])
+            p_comp.metric(t(lang, "status_panel_compliance"),
+                          t(lang, f"compliance_{panel['compliance']}")
+                          if panel["compliance"] else "—")
             p_open.metric(t(lang, "status_panel_open"), panel["open_display"])
             p_res.metric(t(lang, "status_panel_resolved"), panel["resolved_display"])
             st.caption(
