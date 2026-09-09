@@ -166,3 +166,25 @@ Vous pouvez aussi marquer un constat **résolu par décision** (p. ex. « cellul
 - **Rédigez des notes utiles.** La note fait partie du dossier permanent.
 - **Validez après chaque correctif** — l'application le fait automatiquement ; lisez toujours le résultat.
 - **Téléchargez les rapports EN et FR avant de fermer** une soumission.
+
+
+---
+
+## Appendix — Visual tour of the project workflow / Annexe — Tour visuel du flux de projet
+
+Additional screenshots / Captures d'écran supplémentaires :
+
+**Findings overview after validation (metrics, downloads, finding list) /
+Vue d'ensemble des constats après validation :**
+
+![Findings overview](screenshots/05_findings_overview.png)
+
+**Compliant project — zero findings, green panel / Projet conforme — zéro
+constat, panneau vert :**
+
+![Compliant project](screenshots/08_compliant_project.png)
+
+**French interface with a project open / Interface française avec un projet
+ouvert :**
+
+![French project page](screenshots/07_french_ui.png)
