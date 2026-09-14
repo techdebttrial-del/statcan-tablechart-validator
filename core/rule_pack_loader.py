@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 import yaml
 
@@ -33,26 +33,54 @@ class RulePackLoader:
 
     _instance = None
 
-    def __init__(self, config_dir: str):
-        self.config_dir = config_dir
+    #: Location of the YAML data inside this distribution package.
+    #: Works identically from a source checkout and an installed wheel/sdist.
+    _CONFIG_PACKAGE = "config"
+
+    def __init__(self, config_dir: str = None):
+        self.config_dir = config_dir or self._default_config_dir()
         self._rules: Dict[str, List[Rule]] = {}
         self._symbols: Dict[str, Any] = {}
         self.reload()
 
+    @staticmethod
+    def _default_config_dir() -> str:
+        """Return a filesystem path for the config package's data.
+
+        Prefers the resolved on-disk location of the ``config`` package so the
+        loader keeps reading plain YAML files whether running from a checkout
+        (config/ at repo root) or an installed wheel (config/ inside the
+        site-packages distribution).
+        """
+        try:
+            import importlib.resources as ilr
+
+            ref = ilr.files(RulePackLoader._CONFIG_PACKAGE)
+            path = str(ref) if ref is not None else ""
+            if path and os.path.isdir(path):
+                return path
+        except Exception:
+            pass
+        # Fallback: repo-layout config dir relative to this module.
+        return os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "config",
+        )
+
+    def _pack_dir(self) -> str:
+        return os.path.join(self.config_dir, "rule_packs")
+
     @classmethod
     def get(cls, config_dir: str = None) -> "RulePackLoader":
         if cls._instance is None:
-            if config_dir is None:
-                config_dir = os.path.join(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    "config",
-                )
             cls._instance = cls(config_dir)
         return cls._instance
 
     def reload(self) -> None:
         self._rules = {}
-        pack_dir = os.path.join(self.config_dir, "rule_packs")
+        pack_dir = self._pack_dir()
+        if not os.path.isdir(pack_dir):
+            return
         for fname in sorted(os.listdir(pack_dir)):
             if not fname.endswith((".yaml", ".yml")):
                 continue

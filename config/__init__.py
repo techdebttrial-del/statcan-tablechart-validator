@@ -1,0 +1,1 @@
+"""StatCan Tables/Charts Validator configuration data (rule packs + symbols)."""

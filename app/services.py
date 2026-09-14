@@ -26,8 +26,10 @@ DATA_ROOT = os.environ.get("TVC_DATA_ROOT", os.path.join(os.path.expanduser("~")
 
 @st.cache_resource
 def get_rule_loader() -> RulePackLoader:
-    config_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config")
-    return RulePackLoader(config_dir)
+    # config_dir=None → RulePackLoader resolves the config package's on-disk
+    # location (works both from a checkout (config/ at repo root) and an
+    # installed wheel/sdist (config/ inside site-packages)).
+    return RulePackLoader()
 
 
 @st.cache_resource

@@ -1,0 +1,1 @@
+"""Standard StatCan symbols (YAML) — packaged as data for install-time availability."""

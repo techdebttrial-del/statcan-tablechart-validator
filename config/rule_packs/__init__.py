@@ -1,0 +1,1 @@
+"""Validation rule packs (YAML) — packaged as data for install-time availability."""

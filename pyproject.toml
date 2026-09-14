@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "statcan-tablechart-validator"
-version = "0.5.0"
+version = "0.6.0"
 description = "Bilingual compliance validator for StatCan Tables 101 / Charts 101 workbooks"
 readme = "README.md"
 license = {text = "MIT"}
@@ -31,6 +31,9 @@ dependencies = [
     "PyYAML>=6.0,<7.0",
 ]
 
+[project.scripts]
+tvc = "app.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4,<9.0",
@@ -38,7 +41,11 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["core*", "app*"]
+include = ["core*", "app*", "config*"]
+
+[tool.setuptools.package-data]
+config = ["rule_packs/*.yaml", "symbols/*.yaml"]
+app = ["*.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
